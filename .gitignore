@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.env
+*.egg-info/
+dist/
+build/
+
+# Models (large binaries — use Git LFS or store in S3)
+models/*.pkl
+models/*.h5
+models/*.pt
+models/results/*.png
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Data (raw large files)
+data/raw/
+data/processed/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

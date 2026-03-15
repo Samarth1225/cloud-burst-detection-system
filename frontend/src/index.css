@@ -1,0 +1,73 @@
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-card: #1c2230;
+  --bg-card-hover: #212840;
+  --border: rgba(99, 120, 170, 0.18);
+  --border-accent: rgba(99, 120, 170, 0.35);
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #484f58;
+  --accent-blue: #185FA5;
+  --accent-blue-light: #4fc3f7;
+  --accent-green: #1D9E75;
+  --accent-amber: #EF9F27;
+  --accent-red: #E24B4A;
+  --accent-purple: #7f77dd;
+  --risk-low: #3B6D11;
+  --risk-low-bg: rgba(59, 109, 17, 0.15);
+  --risk-moderate: #854F0B;
+  --risk-moderate-bg: rgba(239, 159, 39, 0.15);
+  --risk-high: #993C1D;
+  --risk-high-bg: rgba(216, 90, 48, 0.15);
+  --risk-critical: #A32D2D;
+  --risk-critical-bg: rgba(226, 75, 74, 0.15);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; }
+
+body {
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--border-accent); border-radius: 3px; }
+
+/* Utility */
+.mono { font-family: 'Space Mono', monospace; }
+.text-muted { color: var(--text-secondary); }
+.text-sm { font-size: 12px; }
+
+/* Animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.85); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fadeInUp { animation: fadeInUp 0.4s ease both; }
+.pulse-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  animation: pulse 1.6s ease infinite;
+}

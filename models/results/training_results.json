@@ -1,0 +1,55 @@
+{
+  "training_date": "2026-03-15T21:31:20.609393",
+  "n_features": 29,
+  "feature_names": [
+    "temperature_c",
+    "humidity_pct",
+    "pressure_hpa",
+    "wind_speed_kmh",
+    "rainfall_mm_1h",
+    "rainfall_mm_3h",
+    "rainfall_mm_6h",
+    "radar_reflectivity_dbz",
+    "pressure_hpa_delta",
+    "temperature_c_delta",
+    "humidity_pct_delta",
+    "rainfall_mm_1h_delta",
+    "rainfall_rolling_mean_3h",
+    "rainfall_rolling_max_3h",
+    "rainfall_rolling_std_3h",
+    "rainfall_rolling_mean_6h",
+    "rainfall_rolling_max_6h",
+    "pressure_rolling_min_3h",
+    "humidity_rolling_max_3h",
+    "dewpoint_depression",
+    "cape_proxy",
+    "moisture_flux",
+    "instability_index",
+    "risk_score",
+    "hour_sin",
+    "hour_cos",
+    "month_sin",
+    "month_cos",
+    "is_monsoon"
+  ],
+  "random_forest": {
+    "model": "Random Forest",
+    "threshold": 0.3,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "auc_roc": 1.0,
+    "auc_pr": 1.0,
+    "confusion_matrix": [
+      [
+        1472,
+        0
+      ],
+      [
+        0,
+        128
+      ]
+    ]
+  }
+}

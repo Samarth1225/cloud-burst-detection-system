@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: cloudburst-api
+    env: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements.txt && python models/train.py
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: MODEL_DIR
+        value: models
+      - key: OPENWEATHERMAP_API_KEY
+        sync: false
+    healthCheckPath: /health
+
+  - type: static
+    name: cloudburst-dashboard
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: cloudburst-api
+          type: web
+          property: host

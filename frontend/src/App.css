@@ -1,0 +1,43 @@
+/* App-level overrides */
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Range input global styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: rgba(99,120,170,0.25);
+  border-radius: 2px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #185FA5;
+  cursor: pointer;
+  border: 2px solid #0d1117;
+}
+input[type="range"]:disabled::-webkit-slider-thumb {
+  background: rgba(99,120,170,0.3);
+  cursor: default;
+}
+
+/* Checkbox */
+input[type="checkbox"] {
+  accent-color: #185FA5;
+}
+
+/* Button reset */
+button {
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* Link reset */
+a {
+  color: #4fc3f7;
+}

@@ -1,0 +1,89 @@
+name: CI — Cloudburst Detection System
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Backend tests ─────────────────────────────────────────────────────────
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Run preprocessing smoke test
+        run: python utils/data_preprocessing.py
+
+      - name: Run helper tests
+        run: python utils/helpers.py
+
+      - name: Train model (synthetic data)
+        run: python models/train.py
+
+      - name: Test API startup
+        run: |
+          uvicorn backend.main:app --host 0.0.0.0 --port 8000 &
+          sleep 4
+          curl -f http://localhost:8000/health || exit 1
+          curl -f http://localhost:8000/stations || exit 1
+          kill %1
+
+  # ── Frontend build ────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend (Node 20)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package.json
+
+      - name: Install and build
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+  # ── Docker build ──────────────────────────────────────────────────────────
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t cloudburst-detection:latest .
+
+      - name: Health check container
+        run: |
+          docker run -d -p 8000:8000 --name cb-test cloudburst-detection:latest
+          sleep 8
+          curl -f http://localhost:8000/health || exit 1
+          docker stop cb-test
