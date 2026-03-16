@@ -900,12 +900,22 @@ function makeRng(seed) {
 
 async function fetchCurrentWeather(lat, lon) {
   const url = `${OWM_BASE}/weather?lat=${lat}&lon=${lon}&appid=${OWM_KEY}&units=metric`
-  const res = await fetch(url)
-  if (!res.ok) throw new Error('OWM failed')
+  let res
+  try { res = await fetch(url) } catch(e) { throw new Error('Network error: ' + e.message) }
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({}))
+    throw new Error(`OWM ${res.status}: ${err.message || res.statusText}`)
+  }
   const d = await res.json()
+  if (!d.main) throw new Error('OWM: invalid response')
+  // Magnus formula for accurate dew point
+  const T = d.main.temp
+  const RH = d.main.humidity
+  const dewpoint = T - ((100 - RH) / 5)
+
   return {
-    temperature_c:       +d.main.temp.toFixed(1),
-    humidity_pct:        d.main.humidity,
+    temperature_c:       +T.toFixed(1),
+    humidity_pct:        RH,
     pressure_hpa:        d.main.pressure,
     wind_speed_kmh:      +(d.wind.speed * 3.6).toFixed(1),
     wind_direction_deg:  d.wind.deg || 0,
@@ -919,7 +929,9 @@ async function fetchCurrentWeather(lat, lon) {
     feels_like:          +d.main.feels_like.toFixed(1),
     temp_min:            +d.main.temp_min.toFixed(1),
     temp_max:            +d.main.temp_max.toFixed(1),
-    dewpoint_c:          +(d.main.temp - ((100 - d.main.humidity) / 5)).toFixed(1),
+    dewpoint_c:          +dewpoint.toFixed(1),
+    source:              'openweathermap',
+    raw_temp_k:          d.main.temp + 273.15,  // for debug
   }
 }
 
@@ -1364,7 +1376,9 @@ export default function Dashboard({ onBack }) {
           <div style={{ width:34, height:34, background:'linear-gradient(135deg,#185FA5,#1D9E75)', borderRadius:'10px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px', flexShrink:0 }}>⛈</div>
           <div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:'14px', fontWeight:800, color:TP, letterSpacing:'0.3px' }}>CLOUDBURST<span style={{ color:'#4fc3f7' }}>·AI</span></div>
-            <div style={{ fontSize:'10px', color: apiError ? '#EF9F27' : '#1D9E75', letterSpacing:'0.3px' }}>{apiError ? '⚠ Simulated' : '● Live'}</div>
+            <div style={{ fontSize:'10px', color: apiError ? '#EF9F27' : '#1D9E75', letterSpacing:'0.3px' }}>
+              {apiError ? '⚠️ Simulated data' : `● Live — OWM`}
+            </div>
           </div>
         </div>
 
@@ -1439,6 +1453,23 @@ export default function Dashboard({ onBack }) {
         {/* ALERT */}
         {pred && pred.risk_level !== 'LOW' && <div style={{ marginBottom:'14px' }}><AlertBanner riskLevel={pred.risk_level} probability={pred.probability} stationName={loc.name} recommendations={pred.recommendations} /></div>}
 
+        {/* API ERROR BANNER */}
+        {apiError && (
+          <div style={{ marginBottom:'14px', padding:'10px 16px', background:'rgba(239,159,39,0.08)', border:'1px solid rgba(239,159,39,0.35)', borderRadius:'10px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px', backdropFilter:'blur(8px)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+              <span style={{ fontSize:'18px' }}>⚠️</span>
+              <div>
+                <div style={{ fontSize:'12px', fontWeight:600, color:'#EF9F27' }}>Showing simulated data — OpenWeatherMap unreachable</div>
+                <div style={{ fontSize:'11px', color:'#8b949e', marginTop:'2px' }}>Temperatures are approximate. Your API key may still be activating (takes up to 2 hours after signup).</div>
+              </div>
+            </div>
+            <button onClick={()=>{ setApiError(false); load(loc) }}
+              style={{ flexShrink:0, padding:'6px 14px', background:'rgba(239,159,39,0.15)', border:'1px solid rgba(239,159,39,0.4)', borderRadius:'8px', color:'#EF9F27', cursor:'pointer', fontSize:'11px', fontWeight:600, fontFamily:"'DM Sans',sans-serif", whiteSpace:'nowrap' }}>
+              ↻ Retry
+            </button>
+          </div>
+        )}
+
         {/* RISK HERO BANNER */}
         <div style={{ marginBottom:'16px', padding:'20px 24px',
           background:`linear-gradient(135deg, ${rcolor}12 0%, rgba(7,11,20,0.8) 100%)`,
@@ -1455,7 +1486,7 @@ export default function Dashboard({ onBack }) {
             <div style={{ fontSize:'12px', color:TS, marginTop:'4px', maxWidth:'340px' }}>{pred?.recommendations?.[0] || 'All parameters normal. Continue monitoring.'}</div>
           </div>
           <div style={{ marginLeft:'auto', display:'flex', gap:'20px', flexWrap:'wrap' }}>
-            {[['Feels Like',`${w.feels_like||'—'}°C`,'🌡️'],['Condition',w.weather_main||'—','🌤'],['Rain Intensity',rainInt.label,'🌧']].map(([l,v,ic])=>(
+            {[['Temperature',`${w.temperature_c ?? '—'}°C`,'🌡️'],['Feels Like',`${w.feels_like||'—'}°C`,'🤔'],['Condition',w.weather_main||'—','🌤'],['Rain',rainInt.label,'🌧']].map(([l,v,ic])=>(
               <div key={l} style={{ textAlign:'center' }}>
                 <div style={{ fontSize:'18px', marginBottom:'4px' }}>{ic}</div>
                 <div style={{ fontFamily:"'Space Mono',monospace", fontSize:'13px', fontWeight:700, color:TP }}>{v}</div>
@@ -1481,11 +1512,12 @@ export default function Dashboard({ onBack }) {
         </div>
 
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:'12px', marginBottom:'16px' }}>
+          <StatCard label="Min / Max Today" value={`${w.temp_min ?? '—'}° / ${w.temp_max ?? '—'}°`} unit="" icon="🌡️" accentColor='#1D9E75'
+            sub={apiError ? 'Simulated' : 'Live — OWM'} subColor={apiError ? '#EF9F27' : '#1D9E75'} />
           <StatCard label="Cloud Cover" value={(w.cloud_cover_pct||0).toFixed(0)} unit="%" icon="☁️" accentColor='#8b949e' />
           <StatCard label="Visibility" value={(w.visibility_km||10).toFixed(0)} unit="km" icon="👁️" accentColor='#4fc3f7' />
-          <StatCard label="Dew Point" value={(w.dewpoint_c||0).toFixed(1)} unit="°C" icon="🌡️" accentColor='#1D9E75' />
-          <StatCard label="Radar dBZ" value={Math.min(75,((w.rainfall_mm_1h||0)*1.2+10)).toFixed(0)} unit="dBZ" icon="📡"
-            sub={((w.rainfall_mm_1h||0)*1.2+10)>50?'High reflectivity':'Normal'} accentColor='#EF9F27' />
+          <StatCard label="Dew Point" value={(w.dewpoint_c||0).toFixed(1)} unit="°C" icon="💧" accentColor='#185FA5'
+            sub={`Humidity: ${w.humidity_pct||0}%`} />
         </div>
 
         {/* TABS */}
