@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { format, parseISO, addDays } from 'date-fns'
 import RiskGauge from '../components/RiskGauge'
 import AlertBanner from '../components/AlertBanner'
-import MetricCard from '../components/MetricCard'
-import WeatherChart from '../components/WeatherChart'
 import { simulatePrediction, simulateWeatherHistory } from '../utils/api'
 
 const OWM_KEY = '53ebcc7377016052b759446896c5559c'
@@ -895,35 +893,33 @@ const LOCATIONS = [
   { id:'X183', name:'Khatima',            state:'Uttarakhand',      lat:28.9200, lon:79.9720, elev:236  },
 ]
 
-// ── RNG (fallback only) ───────────────────────────────────────────────────────
 function makeRng(seed) {
   let s = (seed >>> 0) || 1
   return () => { s = (Math.imul(1664525, s) + 1013904223) >>> 0; return s / 0xffffffff }
 }
 
-// ── OpenWeatherMap API ────────────────────────────────────────────────────────
 async function fetchCurrentWeather(lat, lon) {
   const url = `${OWM_BASE}/weather?lat=${lat}&lon=${lon}&appid=${OWM_KEY}&units=metric`
   const res = await fetch(url)
-  if (!res.ok) throw new Error('OWM current weather failed')
+  if (!res.ok) throw new Error('OWM failed')
   const d = await res.json()
   return {
-    temperature_c:           +d.main.temp.toFixed(1),
-    humidity_pct:            d.main.humidity,
-    pressure_hpa:            d.main.pressure,
-    wind_speed_kmh:          +(d.wind.speed * 3.6).toFixed(1),
-    wind_direction_deg:      d.wind.deg || 0,
-    rainfall_mm_1h:          +(d.rain?.['1h'] || 0).toFixed(1),
-    rainfall_mm_3h:          +(d.rain?.['3h'] || 0).toFixed(1),
-    cloud_cover_pct:         d.clouds.all,
-    visibility_km:           +((d.visibility || 10000) / 1000).toFixed(1),
-    weather_desc:            d.weather[0].description,
-    weather_icon:            d.weather[0].icon,
-    weather_main:            d.weather[0].main,
-    feels_like:              +d.main.feels_like.toFixed(1),
-    temp_min:                +d.main.temp_min.toFixed(1),
-    temp_max:                +d.main.temp_max.toFixed(1),
-    dewpoint_c:              +(d.main.temp - ((100 - d.main.humidity) / 5)).toFixed(1),
+    temperature_c:       +d.main.temp.toFixed(1),
+    humidity_pct:        d.main.humidity,
+    pressure_hpa:        d.main.pressure,
+    wind_speed_kmh:      +(d.wind.speed * 3.6).toFixed(1),
+    wind_direction_deg:  d.wind.deg || 0,
+    rainfall_mm_1h:      +(d.rain?.['1h'] || 0).toFixed(1),
+    rainfall_mm_3h:      +(d.rain?.['3h'] || 0).toFixed(1),
+    cloud_cover_pct:     d.clouds.all,
+    visibility_km:       +((d.visibility || 10000) / 1000).toFixed(1),
+    weather_desc:        d.weather[0].description,
+    weather_main:        d.weather[0].main,
+    weather_icon:        d.weather[0].icon,
+    feels_like:          +d.main.feels_like.toFixed(1),
+    temp_min:            +d.main.temp_min.toFixed(1),
+    temp_max:            +d.main.temp_max.toFixed(1),
+    dewpoint_c:          +(d.main.temp - ((100 - d.main.humidity) / 5)).toFixed(1),
   }
 }
 
@@ -932,7 +928,6 @@ async function fetch5DayForecast(lat, lon) {
   const res = await fetch(url)
   if (!res.ok) throw new Error('OWM forecast failed')
   const d = await res.json()
-  // Group by day
   const days = {}
   d.list.forEach(item => {
     const date = item.dt_txt.split(' ')[0]
@@ -940,43 +935,32 @@ async function fetch5DayForecast(lat, lon) {
     days[date].push(item)
   })
   return Object.entries(days).slice(0, 7).map(([date, items], i) => {
-    const rains    = items.map(x => x.rain?.['3h'] || 0)
-    const totalRain= rains.reduce((a, b) => a + b, 0)
-    const maxRain  = Math.max(...rains)
-    const temps    = items.map(x => x.main.temp)
-    const hums     = items.map(x => x.main.humidity)
-    const winds    = items.map(x => x.wind.speed * 3.6)
-    const preses   = items.map(x => x.main.pressure)
-    const rainChance = Math.round(Math.max(...items.map(x => (x.pop || 0) * 100)))
-    const humidity = Math.round(hums.reduce((a,b)=>a+b,0)/hums.length)
-    const pressure = +(preses.reduce((a,b)=>a+b,0)/preses.length).toFixed(1)
-    const wind     = +(winds.reduce((a,b)=>a+b,0)/winds.length).toFixed(1)
-    const icon     = items[4]?.weather[0]?.icon || items[0]?.weather[0]?.icon || '01d'
-    const desc     = items[4]?.weather[0]?.main || items[0]?.weather[0]?.main || 'Clear'
-    const iconMap  = { Clear:'☀️', Clouds:'🌥️', Rain:'🌧️', Drizzle:'🌦️', Thunderstorm:'⛈️', Snow:'❄️', Mist:'🌫️', Fog:'🌫️' }
-    const cbRisk   = Math.min(0.95, Math.max(0.02,
+    const rains     = items.map(x => x.rain?.['3h'] || 0)
+    const totalRain = rains.reduce((a, b) => a + b, 0)
+    const maxRain   = Math.max(...rains)
+    const temps     = items.map(x => x.main.temp)
+    const hums      = items.map(x => x.main.humidity)
+    const winds     = items.map(x => x.wind.speed * 3.6)
+    const preses    = items.map(x => x.main.pressure)
+    const rainChance= Math.round(Math.max(...items.map(x => (x.pop || 0) * 100)))
+    const humidity  = Math.round(hums.reduce((a,b)=>a+b,0)/hums.length)
+    const pressure  = +(preses.reduce((a,b)=>a+b,0)/preses.length).toFixed(1)
+    const wind      = +(winds.reduce((a,b)=>a+b,0)/winds.length).toFixed(1)
+    const desc      = items[4]?.weather[0]?.main || items[0]?.weather[0]?.main || 'Clear'
+    const iconMap   = { Clear:'☀️', Clouds:'🌥️', Rain:'🌧️', Drizzle:'🌦️', Thunderstorm:'⛈️', Snow:'❄️', Mist:'🌫️', Fog:'🌫️' }
+    const cbRisk    = Math.min(0.95, Math.max(0.02,
       (maxRain / 100) * 0.38 + (Math.max(humidity - 70, 0) / 30) * 0.22 +
       (Math.max(1010 - pressure, 0) / 20) * 0.18 + (wind / 60) * 0.1 +
       (rainChance / 100) * 0.12 + (desc === 'Thunderstorm' ? 0.1 : 0)
     ))
     const riskLevel = cbRisk < 0.30 ? 'LOW' : cbRisk < 0.55 ? 'MODERATE' : cbRisk < 0.75 ? 'HIGH' : 'CRITICAL'
-    const dateObj = new Date(date)
     return {
-      label:      i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : format(dateObj, 'EEE, d MMM'),
-      date,
-      icon:       iconMap[desc] || '🌤️',
-      owmIcon:    icon,
-      type:       desc,
-      tempHigh:   Math.round(Math.max(...temps)),
-      tempLow:    Math.round(Math.min(...temps)),
-      humidity,
-      rainfall:   +totalRain.toFixed(1),
-      rainChance,
-      pressure,
-      wind:       Math.round(wind),
-      cbRisk:     +cbRisk.toFixed(3),
-      riskLevel,
-      hourly:     items.map(x => ({
+      label:      i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : format(new Date(date), 'EEE, d MMM'),
+      date, icon: iconMap[desc] || '🌤️', type: desc,
+      tempHigh: Math.round(Math.max(...temps)), tempLow: Math.round(Math.min(...temps)),
+      humidity, rainfall: +totalRain.toFixed(1), rainChance, pressure,
+      wind: Math.round(wind), cbRisk: +cbRisk.toFixed(3), riskLevel,
+      hourly: items.map(x => ({
         time:     x.dt_txt.split(' ')[1].slice(0,5),
         temp:     +x.main.temp.toFixed(1),
         rain:     +(x.rain?.['3h'] || 0).toFixed(1),
@@ -988,110 +972,69 @@ async function fetch5DayForecast(lat, lon) {
   })
 }
 
-async function fetchHistoricalData(lat, lon, hours = 24) {
-  // OWM free tier doesn't have historical — use 5-day/3h data as recent history
-  const url = `${OWM_BASE}/forecast?lat=${lat}&lon=${lon}&appid=${OWM_KEY}&units=metric`
-  const res = await fetch(url)
-  if (!res.ok) throw new Error('OWM history failed')
-  const d = await res.json()
-  return d.list.slice(0, 8).map(item => ({
-    timestamp:               item.dt_txt,
-    temperature_c:           +item.main.temp.toFixed(1),
-    humidity_pct:            item.main.humidity,
-    pressure_hpa:            item.main.pressure,
-    wind_speed_kmh:          +(item.wind.speed * 3.6).toFixed(1),
-    rainfall_mm_1h:          +(item.rain?.['3h'] || 0).toFixed(1),
-    rainfall_mm_3h:          +(item.rain?.['3h'] || 0).toFixed(1),
-    radar_reflectivity_dbz:  Math.min(75, (item.rain?.['3h'] || 0) * 1.2 + 10),
-    cloudburst_probability:  Math.min(0.95, ((item.rain?.['3h'] || 0) / 100) * 0.6 + ((item.pop || 0) * 0.4)),
-  }))
-}
-
-// ── Rain intensity helper ─────────────────────────────────────────────────────
-function getRainIntensity(mmh) {
-  if (mmh === 0)     return { label: 'None',     color: '#484f58', bg: 'rgba(72,79,88,0.2)' }
-  if (mmh < 2.5)     return { label: 'Light',    color: '#4fc3f7', bg: 'rgba(79,195,247,0.15)' }
-  if (mmh < 7.5)     return { label: 'Moderate', color: '#185FA5', bg: 'rgba(24,95,165,0.2)' }
-  if (mmh < 35)      return { label: 'Heavy',    color: '#EF9F27', bg: 'rgba(239,159,39,0.2)' }
-  if (mmh < 100)     return { label: 'Very Heavy',color: '#D85A30', bg: 'rgba(216,90,48,0.2)' }
-  return               { label: 'EXTREME',   color: '#E24B4A', bg: 'rgba(226,75,74,0.2)' }
-}
-
-// ── Distance calculator ────────────────────────────────────────────────────────
 function getDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLon = (lon2 - lon1) * Math.PI / 180
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2
+  const R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-const RISK_COLOR = { LOW:'#639922', MODERATE:'#EF9F27', HIGH:'#D85A30', CRITICAL:'#E24B4A' }
-const RISK_BG    = { LOW:'rgba(59,109,17,0.12)', MODERATE:'rgba(239,159,39,0.13)', HIGH:'rgba(216,90,48,0.14)', CRITICAL:'rgba(226,75,74,0.17)' }
-const HINDI = {
-  LOW: 'कम जोखिम', MODERATE: 'मध्यम जोखिम', HIGH: 'उच्च जोखिम', CRITICAL: 'गंभीर खतरा',
-  search: 'शहर या जिला खोजें...', forecast: '7 दिन का पूर्वानुमान',
-  rainfall: 'वर्षा', humidity: 'आर्द्रता', pressure: 'दबाव', wind: 'हवा',
-  risk: 'बादल फटने का जोखिम', recommendations: 'सिफारिशें', loading: 'लोड हो रहा है...',
-  realData: 'असली डेटा', simData: 'अनुमानित डेटा',
+function getRainIntensity(mm) {
+  if (mm === 0)   return { label:'None',      color:'#484f58', width:'0%'    }
+  if (mm < 2.5)   return { label:'Light',     color:'#4fc3f7', width:'15%'   }
+  if (mm < 7.5)   return { label:'Moderate',  color:'#185FA5', width:'35%'   }
+  if (mm < 35)    return { label:'Heavy',     color:'#EF9F27', width:'60%'   }
+  if (mm < 100)   return { label:'Very Heavy',color:'#D85A30', width:'80%'   }
+  return               { label:'EXTREME',   color:'#E24B4A', width:'100%'  }
 }
 
-// ── Location Search ───────────────────────────────────────────────────────────
-function LocationSearch({ onSelect, currentName, lang }) {
-  const [query,   setQuery]   = useState('')
-  const [results, setResults] = useState([])
-  const [open,    setOpen]    = useState(false)
-  const wrapRef = useRef(null)
+const RC = { LOW:'#639922', MODERATE:'#EF9F27', HIGH:'#D85A30', CRITICAL:'#E24B4A' }
+const RB = { LOW:'rgba(59,109,17,0.12)', MODERATE:'rgba(239,159,39,0.13)', HIGH:'rgba(216,90,48,0.14)', CRITICAL:'rgba(226,75,74,0.17)' }
+
+const HINDI = { LOW:'कम', MODERATE:'मध्यम', HIGH:'उच्च', CRITICAL:'गंभीर', search:'खोजें...' }
+
+// ── Search ────────────────────────────────────────────────────────────────────
+function SearchBar({ onSelect, currentName, lang }) {
+  const [q, setQ]       = useState('')
+  const [res, setRes]   = useState([])
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
 
   useEffect(() => {
-    if (query.length < 2) { setResults([]); setOpen(false); return }
-    const q = query.toLowerCase()
-    const hits = LOCATIONS.filter(l =>
-      l.name.toLowerCase().includes(q) || l.state.toLowerCase().includes(q)
-    ).slice(0, 9)
-    setResults(hits); setOpen(true)
-  }, [query])
+    if (q.length < 2) { setRes([]); setOpen(false); return }
+    const hits = LOCATIONS.filter(l => l.name.toLowerCase().includes(q.toLowerCase()) || l.state.toLowerCase().includes(q.toLowerCase())).slice(0,9)
+    setRes(hits); setOpen(true)
+  }, [q])
 
   useEffect(() => {
-    const fn = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', fn)
     return () => document.removeEventListener('mousedown', fn)
   }, [])
 
   return (
-    <div ref={wrapRef} style={{ position:'relative', width:'100%', maxWidth:'440px' }}>
-      <div style={{ display:'flex', alignItems:'center', background:'#1c2230', border:'1px solid rgba(99,120,170,0.4)', borderRadius:'10px', padding:'0 12px', gap:'8px' }}>
-        <span style={{ fontSize:'14px', opacity:0.5, flexShrink:0 }}>🔍</span>
-        <input value={query} onChange={e => setQuery(e.target.value)}
-          onFocus={() => query.length >= 2 && setOpen(true)}
-          placeholder={lang === 'hi' ? HINDI.search : `Search city or state... (${currentName})`}
-          style={{ background:'none', border:'none', outline:'none', color:'#e6edf3', fontSize:'13px', padding:'10px 0', width:'100%', fontFamily:"'DM Sans',sans-serif" }} />
-        {query && <span onClick={() => { setQuery(''); setOpen(false) }}
-          style={{ cursor:'pointer', color:'#8b949e', fontSize:'18px', lineHeight:1, flexShrink:0 }}>&times;</span>}
+    <div ref={ref} style={{ position:'relative', flex:1, maxWidth:'420px' }}>
+      <div style={{ display:'flex', alignItems:'center', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(79,195,247,0.2)', borderRadius:'12px', padding:'0 14px', gap:'10px', transition:'border-color .2s' }}
+        onFocus={() => {}} >
+        <span style={{ fontSize:'14px', opacity:0.5 }}>🔍</span>
+        <input value={q} onChange={e => setQ(e.target.value)} onFocus={() => q.length >= 2 && setOpen(true)}
+          placeholder={lang==='hi' ? HINDI.search : `Search city or state... (${currentName})`}
+          style={{ background:'none', border:'none', outline:'none', color:'#e6edf3', fontSize:'13px', padding:'11px 0', width:'100%', fontFamily:"'DM Sans',sans-serif" }} />
+        {q && <span onClick={() => { setQ(''); setOpen(false) }} style={{ cursor:'pointer', color:'#8b949e', fontSize:'18px', lineHeight:1 }}>&times;</span>}
       </div>
-      {open && results.length > 0 && (
-        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'#1c2230', border:'1px solid rgba(99,120,170,0.35)', borderRadius:'10px', zIndex:300, overflow:'hidden', boxShadow:'0 12px 40px rgba(0,0,0,0.6)' }}>
-          {results.map((loc, idx) => (
-            <div key={loc.id} onClick={() => { onSelect(loc); setQuery(''); setOpen(false) }}
-              style={{ padding:'10px 14px', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom: idx < results.length-1 ? '0.5px solid rgba(99,120,170,0.1)' : 'none' }}
-              onMouseEnter={e => e.currentTarget.style.background='#252d3d'}
+      {open && res.length > 0 && (
+        <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, right:0, background:'#0d1117', border:'1px solid rgba(79,195,247,0.2)', borderRadius:'12px', zIndex:300, overflow:'hidden', boxShadow:'0 20px 60px rgba(0,0,0,0.8)' }}>
+          {res.map((loc,i) => (
+            <div key={loc.id} onClick={() => { onSelect(loc); setQ(''); setOpen(false) }}
+              style={{ padding:'11px 16px', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom: i<res.length-1 ? '0.5px solid rgba(79,195,247,0.06)':'none', transition:'background .1s' }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(79,195,247,0.06)'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
               <div>
                 <span style={{ fontSize:'13px', color:'#e6edf3', fontWeight:500 }}>{loc.name}</span>
                 <span style={{ fontSize:'11px', color:'#8b949e', marginLeft:'8px' }}>{loc.state}</span>
               </div>
-              <div style={{ fontSize:'10px', color:'#8b949e', textAlign:'right', flexShrink:0, marginLeft:'12px' }}>
-                <div>{loc.elev}m</div>
-                <div>{loc.lat.toFixed(2)}N</div>
-              </div>
+              <span style={{ fontSize:'10px', color:'#4fc3f7', fontFamily:"'Space Mono',monospace" }}>{loc.elev}m</span>
             </div>
           ))}
-        </div>
-      )}
-      {open && query.length >= 2 && results.length === 0 && (
-        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'#1c2230', border:'1px solid rgba(99,120,170,0.3)', borderRadius:'10px', zIndex:300, padding:'14px', fontSize:'12px', color:'#8b949e' }}>
-          No results for "{query}"
         </div>
       )}
     </div>
@@ -1099,124 +1042,111 @@ function LocationSearch({ onSelect, currentName, lang }) {
 }
 
 // ── Forecast Card ─────────────────────────────────────────────────────────────
-function ForecastCard({ day, selected, onClick, lang }) {
-  const color = RISK_COLOR[day.riskLevel]
+function ForecastDay({ day, selected, onClick, lang }) {
+  const color = RC[day.riskLevel]
   return (
-    <div onClick={onClick} style={{ background: selected ? `${color}18` : day.riskLevel !== 'LOW' ? RISK_BG[day.riskLevel] : '#1c2230',
-      border:`1px solid ${selected ? color : day.riskLevel !== 'LOW' ? color+'55' : 'rgba(99,120,170,0.18)'}`,
-      borderRadius:'12px', padding:'12px 10px', textAlign:'center', flex:'1 1 0', minWidth:'105px', cursor:'pointer', transition:'all .15s' }}>
-      <div style={{ fontSize:'11px', color:'#8b949e', marginBottom:'5px', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{day.label}</div>
-      <div style={{ fontSize:'24px', marginBottom:'4px', lineHeight:1 }}>{day.icon}</div>
-      <div style={{ fontSize:'9px', color:'#8b949e', marginBottom:'7px', minHeight:'26px', lineHeight:1.4 }}>{day.type}</div>
-      <div style={{ display:'flex', justifyContent:'center', gap:'4px', marginBottom:'6px' }}>
-        <span style={{ fontFamily:"'Space Mono',monospace", fontSize:'12px', fontWeight:700, color:'#e6edf3' }}>{day.tempHigh}°</span>
-        <span style={{ fontFamily:"'Space Mono',monospace", fontSize:'12px', color:'#484f58' }}>{day.tempLow}°</span>
+    <div onClick={onClick} style={{
+      flex:'1 1 0', minWidth:'100px', padding:'14px 10px', borderRadius:'14px', textAlign:'center', cursor:'pointer',
+      background: selected ? `${color}18` : 'rgba(255,255,255,0.03)',
+      border: `1px solid ${selected ? color : 'rgba(255,255,255,0.07)'}`,
+      transition:'all .2s', transform: selected ? 'translateY(-3px)' : 'none',
+      boxShadow: selected ? `0 8px 30px ${color}22` : 'none',
+    }}>
+      <div style={{ fontSize:'11px', color:'#8b949e', marginBottom:'6px', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{day.label}</div>
+      <div style={{ fontSize:'26px', marginBottom:'5px', lineHeight:1 }}>{day.icon}</div>
+      <div style={{ fontSize:'9px', color:'#8b949e', marginBottom:'8px', minHeight:'28px', lineHeight:1.4 }}>{day.type}</div>
+      <div style={{ display:'flex', justifyContent:'center', gap:'5px', marginBottom:'8px' }}>
+        <span style={{ fontFamily:"'Space Mono',monospace", fontSize:'13px', fontWeight:700, color:'#e6edf3' }}>{day.tempHigh}°</span>
+        <span style={{ fontFamily:"'Space Mono',monospace", fontSize:'13px', color:'#333c4a' }}>{day.tempLow}°</span>
       </div>
-      <div style={{ fontSize:'10px', color:'#4fc3f7', marginBottom:'3px' }}>💧 {day.rainChance}%</div>
-      {day.rainfall > 0.5 && <div style={{ fontSize:'10px', color:'#8b949e', marginBottom:'5px' }}>{day.rainfall}mm</div>}
-      <div style={{ padding:'2px 5px', borderRadius:'8px', fontSize:'9px', fontWeight:600, background:`${color}20`, color, border:`1px solid ${color}44`, display:'inline-block', marginBottom:'3px' }}>
-        {lang === 'hi' ? HINDI[day.riskLevel] : day.riskLevel}
+      <div style={{ fontSize:'10px', color:'#4fc3f7', marginBottom:'4px' }}>💧 {day.rainChance}%</div>
+      {day.rainfall > 0.5 && <div style={{ fontSize:'10px', color:'#8b949e', marginBottom:'6px' }}>{day.rainfall}mm</div>}
+      <div style={{ padding:'3px 6px', borderRadius:'6px', fontSize:'9px', fontWeight:700, background:`${color}20`, color, border:`1px solid ${color}33`, display:'inline-block', marginBottom:'3px' }}>
+        {lang==='hi' ? HINDI[day.riskLevel] : day.riskLevel}
       </div>
-      <div style={{ fontFamily:"'Space Mono',monospace", fontSize:'11px', fontWeight:700, color, marginTop:'2px' }}>{Math.round(day.cbRisk * 100)}%</div>
+      <div style={{ fontFamily:"'Space Mono',monospace", fontSize:'12px', fontWeight:700, color, marginTop:'3px' }}>{Math.round(day.cbRisk*100)}%</div>
+    </div>
+  )
+}
+
+// ── Stat Card ─────────────────────────────────────────────────────────────────
+function StatCard({ label, value, unit, sub, subColor, icon, accentColor='#185FA5' }) {
+  return (
+    <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'16px', padding:'18px 20px', position:'relative', overflow:'hidden' }}>
+      <div style={{ position:'absolute', top:0, left:0, right:0, height:'2px', background:`linear-gradient(90deg, ${accentColor}, transparent)` }} />
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'10px' }}>
+        <span style={{ fontSize:'11px', color:'#8b949e', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.5px' }}>{label}</span>
+        {icon && <span style={{ fontSize:'16px', opacity:0.7 }}>{icon}</span>}
+      </div>
+      <div style={{ display:'flex', alignItems:'baseline', gap:'4px' }}>
+        <span style={{ fontFamily:"'Space Mono',monospace", fontSize:'26px', fontWeight:700, color:'#e6edf3', lineHeight:1 }}>{value ?? '—'}</span>
+        {unit && <span style={{ fontSize:'12px', color:'#8b949e' }}>{unit}</span>}
+      </div>
+      {sub && <div style={{ fontSize:'11px', color: subColor || '#8b949e', marginTop:'6px' }}>{sub}</div>}
+    </div>
+  )
+}
+
+// ── Custom Tooltip ────────────────────────────────────────────────────────────
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background:'#0d1117', border:'1px solid rgba(79,195,247,0.2)', borderRadius:'10px', padding:'10px 14px', fontSize:'12px' }}>
+      <p style={{ color:'#8b949e', marginBottom:'6px' }}>{label}</p>
+      {payload.map(p => (
+        <p key={p.name} style={{ color:p.color, margin:'2px 0' }}>
+          {p.name}: <strong style={{ fontFamily:"'Space Mono',monospace" }}>{typeof p.value==='number' ? p.value.toFixed(1) : p.value}</strong>
+        </p>
+      ))}
     </div>
   )
 }
 
 // ── Compare Modal ─────────────────────────────────────────────────────────────
-function CompareModal({ onClose, primaryLoc, primaryWeather, lang }) {
-  const [compareSearch, setCompareSearch] = useState('')
-  const [compareLoc,    setCompareLoc]    = useState(null)
-  const [compareWeather,setCompareWeather]= useState(null)
-  const [loading,       setLoading]       = useState(false)
+function CompareModal({ onClose, primaryLoc, primaryWeather, primaryPred }) {
+  const [q, setQ]           = useState('')
+  const [compareLoc, setCL] = useState(null)
+  const [compareW,   setCW] = useState(null)
+  const [loading,    setL]  = useState(false)
 
-  const loadCompare = async (loc) => {
-    setLoading(true)
+  const load = async loc => {
+    setL(true); setCL(loc)
     try {
       const w = await fetchCurrentWeather(loc.lat, loc.lon)
-      const pred = simulatePrediction({ station_id: loc.id, ...w })
-      setCompareWeather({ ...w, prediction: pred })
-      setCompareLoc(loc)
-    } catch { setCompareWeather(null) }
-    setLoading(false)
+      const p = simulatePrediction({ station_id: loc.id, ...w })
+      setCW({ ...w, prediction: p })
+    } catch { setCW(null) }
+    setL(false)
   }
 
-  const cols = [
-    { key: 'temperature_c',  label: 'Temperature', unit: '°C' },
-    { key: 'humidity_pct',   label: 'Humidity',    unit: '%'  },
-    { key: 'pressure_hpa',   label: 'Pressure',    unit: ' hPa' },
-    { key: 'wind_speed_kmh', label: 'Wind',        unit: ' km/h' },
-    { key: 'rainfall_mm_1h', label: 'Rainfall 1h', unit: ' mm' },
-  ]
-
   return (
-    <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', zIndex:500, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
-      <div style={{ background:'#1c2230', borderRadius:'16px', padding:'24px', maxWidth:'620px', width:'100%', border:'1px solid rgba(99,120,170,0.3)', maxHeight:'80vh', overflowY:'auto' }}>
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:500, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px', backdropFilter:'blur(4px)' }}>
+      <div style={{ background:'#0d1117', borderRadius:'20px', padding:'28px', maxWidth:'580px', width:'100%', border:'1px solid rgba(79,195,247,0.2)', maxHeight:'80vh', overflowY:'auto' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
-          <h2 style={{ color:'#e6edf3', fontSize:'16px', fontWeight:600, margin:0 }}>Compare Cities</h2>
-          <button onClick={onClose} style={{ background:'none', border:'none', color:'#8b949e', fontSize:'22px', cursor:'pointer' }}>&times;</button>
+          <h2 style={{ fontFamily:"'Syne',sans-serif", color:'#e6edf3', fontSize:'18px', fontWeight:700, margin:0 }}>Compare Cities</h2>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#8b949e', fontSize:'24px', cursor:'pointer', lineHeight:1 }}>&times;</button>
         </div>
-        <div style={{ marginBottom:'16px' }}>
-          <input value={compareSearch} onChange={e => {
-            setCompareSearch(e.target.value)
-            const q = e.target.value.toLowerCase()
-            if (q.length >= 2) {
-              const hit = LOCATIONS.find(l => l.name.toLowerCase().includes(q) || l.state.toLowerCase().includes(q))
-              if (hit) loadCompare(hit)
-            }
-          }} placeholder="Type city to compare..." style={{ width:'100%', background:'#161b22', border:'1px solid rgba(99,120,170,0.3)', borderRadius:'8px', padding:'10px 12px', color:'#e6edf3', outline:'none', fontSize:'13px', fontFamily:"'DM Sans',sans-serif" }} />
+        <input value={q} onChange={e => { setQ(e.target.value); const hit = LOCATIONS.find(l=>l.name.toLowerCase().includes(e.target.value.toLowerCase())); if(hit && e.target.value.length>=2) load(hit) }}
+          placeholder="Type city to compare..."
+          style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(79,195,247,0.2)', borderRadius:'10px', padding:'11px 14px', color:'#e6edf3', outline:'none', fontSize:'13px', fontFamily:"'DM Sans',sans-serif", marginBottom:'20px' }} />
+        <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr', gap:'12px', alignItems:'start' }}>
+          {[{loc:primaryLoc,w:primaryWeather,p:primaryPred,color:'#4fc3f7'},{loc:compareLoc,w:compareW,p:compareW?.prediction,color:'#EF9F27'}].map((side,si) => (
+            <div key={si} style={{ background:'rgba(255,255,255,0.03)', border:`1px solid ${side.color}33`, borderRadius:'14px', padding:'16px' }}>
+              <div style={{ fontSize:'13px', fontWeight:600, color:side.color, marginBottom:'14px' }}>{side.loc?.name || '—'}</div>
+              {[['Temp','temperature_c','°C'],['Humidity','humidity_pct','%'],['Pressure','pressure_hpa',' hPa'],['Wind','wind_speed_kmh',' km/h'],['Rain 1h','rainfall_mm_1h',' mm']].map(([lbl,key,u]) => (
+                <div key={key} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'0.5px solid rgba(255,255,255,0.05)', fontSize:'12px' }}>
+                  <span style={{ color:'#8b949e' }}>{lbl}</span>
+                  <span style={{ fontFamily:"'Space Mono',monospace", color:'#e6edf3' }}>{loading && si===1 ? '...' : side.w?.[key] != null ? side.w[key]+u : '—'}</span>
+                </div>
+              ))}
+              {side.p && <div style={{ marginTop:'10px', padding:'8px', background:`${RC[side.p.risk_level]}15`, borderRadius:'8px', textAlign:'center' }}>
+                <div style={{ fontFamily:"'Space Mono',monospace", fontSize:'18px', fontWeight:700, color:RC[side.p.risk_level] }}>{Math.round(side.p.probability*100)}%</div>
+                <div style={{ fontSize:'10px', color:RC[side.p.risk_level] }}>{side.p.risk_level} RISK</div>
+              </div>}
+            </div>
+          ))}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px', color:'#8b949e', paddingTop:'20px' }}>⇄</div>
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px', marginBottom:'16px' }}>
-          <div style={{ fontSize:'11px', color:'#8b949e', fontWeight:600, padding:'8px 0', borderBottom:'1px solid rgba(99,120,170,0.2)' }}>Parameter</div>
-          <div style={{ fontSize:'12px', color:'#4fc3f7', fontWeight:600, padding:'8px 0', borderBottom:'1px solid rgba(99,120,170,0.2)', textAlign:'center' }}>{primaryLoc.name}</div>
-          <div style={{ fontSize:'12px', color:'#EF9F27', fontWeight:600, padding:'8px 0', borderBottom:'1px solid rgba(99,120,170,0.2)', textAlign:'center' }}>{compareLoc?.name || '—'}</div>
-          {cols.map(col => {
-            const v1 = primaryWeather?.[col.key]
-            const v2 = compareWeather?.[col.key]
-            return [
-              <div key={col.key+'l'} style={{ fontSize:'11px', color:'#8b949e', padding:'7px 0', borderBottom:'0.5px solid rgba(99,120,170,0.08)' }}>{col.label}</div>,
-              <div key={col.key+'1'} style={{ fontSize:'12px', color:'#e6edf3', padding:'7px 0', textAlign:'center', fontFamily:"'Space Mono',monospace", borderBottom:'0.5px solid rgba(99,120,170,0.08)' }}>{v1 != null ? v1 + col.unit : '—'}</div>,
-              <div key={col.key+'2'} style={{ fontSize:'12px', color: loading ? '#8b949e' : '#e6edf3', padding:'7px 0', textAlign:'center', fontFamily:"'Space Mono',monospace", borderBottom:'0.5px solid rgba(99,120,170,0.08)' }}>{loading ? '...' : v2 != null ? v2 + col.unit : '—'}</div>,
-            ]
-          })}
-          <div style={{ fontSize:'11px', color:'#8b949e', padding:'7px 0' }}>CB Risk</div>
-          <div style={{ padding:'7px 0', textAlign:'center' }}>
-            {primaryWeather?.prediction && <span style={{ fontSize:'11px', fontWeight:700, color: RISK_COLOR[primaryWeather.prediction.risk_level] }}>{Math.round((primaryWeather.prediction.probability||0)*100)}%</span>}
-          </div>
-          <div style={{ padding:'7px 0', textAlign:'center' }}>
-            {compareWeather?.prediction && <span style={{ fontSize:'11px', fontWeight:700, color: RISK_COLOR[compareWeather.prediction.risk_level] }}>{Math.round((compareWeather.prediction.probability||0)*100)}%</span>}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Custom Location Modal ──────────────────────────────────────────────────────
-function CustomLocModal({ onClose, onAdd }) {
-  const [name, setName] = useState('')
-  const [lat,  setLat]  = useState('')
-  const [lon,  setLon]  = useState('')
-  const valid = name.length > 1 && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lon))
-  return (
-    <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', zIndex:500, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
-      <div style={{ background:'#1c2230', borderRadius:'16px', padding:'24px', maxWidth:'400px', width:'100%', border:'1px solid rgba(99,120,170,0.3)' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
-          <h2 style={{ color:'#e6edf3', fontSize:'16px', fontWeight:600, margin:0 }}>Add Custom Location</h2>
-          <button onClick={onClose} style={{ background:'none', border:'none', color:'#8b949e', fontSize:'22px', cursor:'pointer' }}>&times;</button>
-        </div>
-        {[['Location Name', name, setName, 'text', 'e.g. My Village'],
-          ['Latitude', lat, setLat, 'number', 'e.g. 30.7333'],
-          ['Longitude', lon, setLon, 'number', 'e.g. 76.7794']].map(([label, val, setter, type, ph]) => (
-          <div key={label} style={{ marginBottom:'14px' }}>
-            <label style={{ fontSize:'11px', color:'#8b949e', display:'block', marginBottom:'5px' }}>{label}</label>
-            <input type={type} value={val} onChange={e => setter(e.target.value)} placeholder={ph}
-              style={{ width:'100%', background:'#161b22', border:'1px solid rgba(99,120,170,0.3)', borderRadius:'8px', padding:'10px 12px', color:'#e6edf3', outline:'none', fontSize:'13px', fontFamily:"'DM Sans',sans-serif" }} />
-          </div>
-        ))}
-        <button onClick={() => { if(valid) { onAdd({ id:'CUSTOM_'+Date.now(), name, state:'Custom Location', lat:parseFloat(lat), lon:parseFloat(lon), elev:0 }); onClose() } }}
-          style={{ width:'100%', padding:'11px', background: valid ? '#185FA5' : '#2a3040', color: valid ? '#fff' : '#8b949e', border:'none', borderRadius:'9px', fontSize:'13px', fontWeight:500, cursor: valid ? 'pointer':'default', fontFamily:"'DM Sans',sans-serif" }}>
-          Add Location
-        </button>
       </div>
     </div>
   )
@@ -1224,562 +1154,511 @@ function CustomLocModal({ onClose, onAdd }) {
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard({ onBack }) {
-  const [activeLocation,  setActiveLocation]  = useState(LOCATIONS[0])
-  const [currentWeather,  setCurrentWeather]  = useState(null)
-  const [weatherHistory,  setWeatherHistory]  = useState([])
-  const [forecast,        setForecast]        = useState([])
-  const [prediction,      setPrediction]      = useState(null)
-  const [loading,         setLoading]         = useState(true)
-  const [apiError,        setApiError]        = useState(false)
-  const [lastUpdated,     setLastUpdated]     = useState(null)
-  const [clock,           setClock]           = useState('')
-  const [lang,            setLang]            = useState('en')
-  const [darkMode,        setDarkMode]        = useState(true)
-  const [selectedDay,     setSelectedDay]     = useState(0)
-  const [showCompare,     setShowCompare]     = useState(false)
-  const [showCustomLoc,   setShowCustomLoc]   = useState(false)
-  const [showRainChart,   setShowRainChart]   = useState(false)
-  const [showNearby,      setShowNearby]      = useState(false)
-  const [notifEnabled,    setNotifEnabled]    = useState(false)
-  const [rainEffect,      setRainEffect]      = useState(false)
-  const [manualMode,      setManualMode]      = useState(false)
+  const [loc,        setLoc]        = useState(LOCATIONS[0])
+  const [weather,    setWeather]    = useState(null)
+  const [history,    setHistory]    = useState([])
+  const [forecast,   setForecast]   = useState([])
+  const [pred,       setPred]       = useState(null)
+  const [loading,    setLoading]    = useState(true)
+  const [apiError,   setApiError]   = useState(false)
+  const [updated,    setUpdated]    = useState(null)
+  const [clock,      setClock]      = useState('')
+  const [lang,       setLang]       = useState('en')
+  const [dark,       setDark]       = useState(true)
+  const [selDay,     setSelDay]     = useState(0)
+  const [showCompare,setShowCompare]= useState(false)
+  const [showNearby, setShowNearby] = useState(false)
+  const [notif,      setNotif]      = useState(false)
+  const [rainFx,     setRainFx]     = useState(false)
+  const [manualMode, setManualMode] = useState(false)
+  const [tab,        setTab]        = useState('overview')
   const [sliders, setSliders] = useState({ rainfall_mm_1h:5, humidity_pct:70, pressure_hpa:1010, wind_speed_kmh:15, radar_reflectivity_dbz:20, lightning_strikes:0 })
-  const intervalRef = useRef(null)
-  const notifRef    = useRef(false)
+  const notifSent = useRef(false)
+  const timer     = useRef(null)
 
-  // ── Apply dark/light mode ────────────────────────────────────────────────
   useEffect(() => {
-    document.body.style.background = darkMode ? '#0d1117' : '#f0f2f5'
-    document.body.style.color      = darkMode ? '#e6edf3' : '#1a1a2e'
-  }, [darkMode])
+    document.body.style.background = dark ? '#070b14' : '#f0f2f5'
+    document.body.style.color      = dark ? '#e6edf3' : '#111827'
+  }, [dark])
 
-  // ── Load data ────────────────────────────────────────────────────────────
-  const loadData = useCallback(async (loc) => {
-    setLoading(true)
-    setApiError(false)
+  const load = useCallback(async (l) => {
+    setLoading(true); setApiError(false)
     try {
-      const [weather, fc, hist] = await Promise.all([
-        fetchCurrentWeather(loc.lat, loc.lon),
-        fetch5DayForecast(loc.lat, loc.lon),
-        fetchHistoricalData(loc.lat, loc.lon),
+      const [w, fc, hist] = await Promise.all([
+        fetchCurrentWeather(l.lat, l.lon),
+        fetch5DayForecast(l.lat, l.lon),
+        (async () => { const res = await fetch(`${OWM_BASE}/forecast?lat=${l.lat}&lon=${l.lon}&appid=${OWM_KEY}&units=metric`); const d = await res.json(); return d.list.slice(0,8).map(x => ({ timestamp:x.dt_txt, temperature_c:+x.main.temp.toFixed(1), humidity_pct:x.main.humidity, pressure_hpa:x.main.pressure, wind_speed_kmh:+(x.wind.speed*3.6).toFixed(1), rainfall_mm_1h:+(x.rain?.['3h']||0).toFixed(1), cloudburst_probability:Math.min(0.95,((x.rain?.['3h']||0)/100)*0.6+((x.pop||0)*0.4)) })) })(),
       ])
-      setCurrentWeather(weather)
-      setForecast(fc)
-      setWeatherHistory(hist)
-      const pred = simulatePrediction({ station_id: loc.id, latitude: loc.lat, longitude: loc.lon, ...weather })
-      setPrediction(pred)
-      // Rain animation for high risk
-      setRainEffect(pred.risk_level === 'HIGH' || pred.risk_level === 'CRITICAL')
-      // Browser notification
-      if (notifEnabled && !notifRef.current && (pred.risk_level === 'HIGH' || pred.risk_level === 'CRITICAL')) {
-        notifRef.current = true
-        if (Notification.permission === 'granted') {
-          new Notification(`Cloudburst Alert — ${loc.name}`, { body: `Risk: ${pred.risk_level} (${Math.round(pred.probability*100)}%)`, icon: '/favicon.ico' })
-        }
-      } else if (pred.risk_level === 'LOW' || pred.risk_level === 'MODERATE') {
-        notifRef.current = false
-      }
-      setLastUpdated(new Date())
-      setLoading(false)
-    } catch (err) {
-      console.error('API error:', err)
+      setWeather(w); setForecast(fc); setHistory(hist)
+      const p = simulatePrediction({ station_id:l.id, latitude:l.lat, longitude:l.lon, ...w })
+      setPred(p); setRainFx(p.risk_level==='HIGH'||p.risk_level==='CRITICAL')
+      if (notif && !notifSent.current && (p.risk_level==='HIGH'||p.risk_level==='CRITICAL')) {
+        notifSent.current = true
+        if (Notification.permission==='granted') new Notification(`⛈ Alert — ${l.name}`, { body:`Risk: ${p.risk_level} (${Math.round(p.probability*100)}%)` })
+      } else if (p.risk_level==='LOW'||p.risk_level==='MODERATE') { notifSent.current = false }
+      setUpdated(new Date()); setLoading(false)
+    } catch {
       setApiError(true)
-      // Fallback to simulation
-      const hist = simulateWeatherHistory(loc.id, 24)
-      setWeatherHistory(hist.records)
-      const latest = hist.records[hist.records.length - 1]
-      const pred = simulatePrediction({ station_id: loc.id, ...latest })
-      setPrediction(pred)
-      setCurrentWeather(latest)
-      setRainEffect(pred.risk_level === 'HIGH' || pred.risk_level === 'CRITICAL')
-      setLastUpdated(new Date())
-      setLoading(false)
+      const hist = simulateWeatherHistory(l.id, 24)
+      setHistory(hist.records)
+      const latest = hist.records[hist.records.length-1]
+      const p = simulatePrediction({ station_id:l.id, ...latest })
+      setPred(p); setWeather(latest); setRainFx(p.risk_level==='HIGH'||p.risk_level==='CRITICAL')
+      setUpdated(new Date()); setLoading(false)
     }
-  }, [notifEnabled])
+  }, [notif])
 
-  useEffect(() => {
-    loadData(activeLocation)
-    if (intervalRef.current) clearInterval(intervalRef.current)
-    intervalRef.current = setInterval(() => loadData(activeLocation), 15 * 60 * 1000)
-    return () => clearInterval(intervalRef.current)
-  }, [activeLocation, loadData])
+  useEffect(() => { load(loc); if(timer.current) clearInterval(timer.current); timer.current = setInterval(()=>load(loc),15*60*1000); return ()=>clearInterval(timer.current) }, [loc,load])
+  useEffect(() => { if(manualMode) setPred(simulatePrediction({station_id:loc.id,temperature_c:20,...sliders})) }, [sliders,manualMode,loc])
+  useEffect(() => { const t=()=>setClock(new Date().toUTCString().slice(17,25)); t(); const id=setInterval(t,1000); return ()=>clearInterval(id) }, [])
 
-  useEffect(() => {
-    if (manualMode) {
-      const pred = simulatePrediction({ station_id: activeLocation.id, temperature_c:20, ...sliders })
-      setPrediction(pred)
-    }
-  }, [sliders, manualMode, activeLocation])
-
-  useEffect(() => {
-    const tick = () => setClock(new Date().toUTCString().slice(17,25))
-    tick(); const id = setInterval(tick, 1000); return () => clearInterval(id)
-  }, [])
-
-  // ── Enable notifications ──────────────────────────────────────────────────
-  const toggleNotifications = async () => {
-    if (!notifEnabled) {
-      const perm = await Notification.requestPermission()
-      if (perm === 'granted') setNotifEnabled(true)
-    } else {
-      setNotifEnabled(false)
-    }
+  const toggleNotif = async () => {
+    if (!notif) { const p = await Notification.requestPermission(); if(p==='granted') setNotif(true) }
+    else setNotif(false)
   }
 
-  // ── Share ─────────────────────────────────────────────────────────────────
-  const shareLocation = () => {
-    const url = `${window.location.origin}?lat=${activeLocation.lat}&lon=${activeLocation.lon}&name=${encodeURIComponent(activeLocation.name)}`
-    if (navigator.share) {
-      navigator.share({ title: `Cloudburst Risk — ${activeLocation.name}`, text: `Current risk: ${prediction?.risk_level || 'LOW'} (${Math.round((prediction?.probability||0)*100)}%)`, url })
-    } else {
-      navigator.clipboard.writeText(url).then(() => alert('Link copied to clipboard!'))
-    }
+  const share = () => {
+    const url = `${window.location.origin}?lat=${loc.lat}&lon=${loc.lon}&name=${encodeURIComponent(loc.name)}`
+    navigator.clipboard?.writeText(url).then(()=>alert('Link copied!'))
   }
 
-  // ── Download PDF ──────────────────────────────────────────────────────────
-  const downloadReport = () => {
-    const content = `CLOUDBURST DETECTION SYSTEM — FORECAST REPORT
-Location: ${activeLocation.name}, ${activeLocation.state}
-Coordinates: ${activeLocation.lat}N, ${activeLocation.lon}E | Elevation: ${activeLocation.elev}m
-Generated: ${new Date().toLocaleString()}
-
-CURRENT CONDITIONS
-Temperature: ${currentWeather?.temperature_c || '—'}°C
-Humidity: ${currentWeather?.humidity_pct || '—'}%
-Pressure: ${currentWeather?.pressure_hpa || '—'} hPa
-Wind Speed: ${currentWeather?.wind_speed_kmh || '—'} km/h
-Rainfall (1h): ${currentWeather?.rainfall_mm_1h || 0} mm
-
-CLOUDBURST RISK ASSESSMENT
-Risk Level: ${prediction?.risk_level || '—'}
-Probability: ${Math.round((prediction?.probability||0)*100)}%
-Model: ${prediction?.model_version || '—'}
-
-7-DAY FORECAST
-${forecast.map(d => `${d.label}: ${d.type}, ${d.tempHigh}/${d.tempLow}°C, Rain ${d.rainChance}%, CB Risk ${Math.round(d.cbRisk*100)}% [${d.riskLevel}]`).join('\n')}
-
-RECOMMENDATIONS
-${(prediction?.recommendations || []).map((r,i) => `${i+1}. ${r}`).join('\n')}
-`
-    const blob = new Blob([content], { type: 'text/plain' })
+  const download = () => {
+    const txt = `CLOUDBURST AI — FORECAST REPORT\nLocation: ${loc.name}, ${loc.state}\nCoords: ${loc.lat}N, ${loc.lon}E | Elev: ${loc.elev}m\nGenerated: ${new Date().toLocaleString()}\n\nCURRENT CONDITIONS\nTemperature: ${weather?.temperature_c||'—'}°C\nHumidity: ${weather?.humidity_pct||'—'}%\nPressure: ${weather?.pressure_hpa||'—'} hPa\nWind: ${weather?.wind_speed_kmh||'—'} km/h\nRainfall (1h): ${weather?.rainfall_mm_1h||0} mm\n\nRISK ASSESSMENT\nLevel: ${pred?.risk_level||'—'}\nProbability: ${Math.round((pred?.probability||0)*100)}%\n\n7-DAY FORECAST\n${forecast.map(d=>`${d.label}: ${d.type}, ${d.tempHigh}/${d.tempLow}°C, Rain ${d.rainChance}%, CB Risk ${Math.round(d.cbRisk*100)}% [${d.riskLevel}]`).join('\n')}\n\nRECOMMENDATIONS\n${(pred?.recommendations||[]).map((r,i)=>`${i+1}. ${r}`).join('\n')}`
     const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `cloudburst-report-${activeLocation.name}-${format(new Date(),'yyyy-MM-dd')}.txt`
+    a.href = URL.createObjectURL(new Blob([txt],{type:'text/plain'}))
+    a.download = `cloudburst-${loc.name}-${format(new Date(),'yyyy-MM-dd')}.txt`
     a.click()
   }
 
-  // ── Nearby stations ───────────────────────────────────────────────────────
-  const nearbyStations = LOCATIONS
-    .map(l => ({ ...l, dist: getDistance(activeLocation.lat, activeLocation.lon, l.lat, l.lon) }))
-    .filter(l => l.id !== activeLocation.id)
-    .sort((a, b) => a.dist - b.dist)
-    .slice(0, 5)
+  const nearby = LOCATIONS.map(l=>({...l,dist:getDistance(loc.lat,loc.lon,l.lat,l.lon)})).filter(l=>l.id!==loc.id).sort((a,b)=>a.dist-b.dist).slice(0,5)
 
-  // ── Derived ───────────────────────────────────────────────────────────────
-  const weather    = currentWeather || {}
-  const prevW      = weatherHistory[weatherHistory.length - 4] || weather
-  const riskColor  = prediction ? (RISK_COLOR[prediction.risk_level] || '#639922') : '#639922'
-  const rainInt    = getRainIntensity(weather.rainfall_mm_1h || 0)
-  const chartData  = weatherHistory.slice(-24).map(d => ({
-    time:     (() => { try { return d.timestamp ? (d.timestamp.includes('T') ? format(parseISO(d.timestamp),'HH:mm') : d.timestamp.slice(11,16)) : '' } catch { return '' } })(),
-    rain:     +(d.rainfall_mm_1h || 0).toFixed(1),
-    prob:     +((d.cloudburst_probability || 0) * 100).toFixed(1),
-    humidity: +(d.humidity_pct || 0).toFixed(0),
-    wind:     +(d.wind_speed_kmh || 0).toFixed(0),
+  const w       = weather || {}
+  const rcolor  = pred ? (RC[pred.risk_level]||'#639922') : '#639922'
+  const rainInt = getRainIntensity(w.rainfall_mm_1h||0)
+  const selFc   = forecast[selDay] || null
+  const peakDay = forecast.length ? forecast.reduce((mx,d)=>d.cbRisk>mx.cbRisk?d:mx,forecast[0]) : null
+
+  const chartData = history.slice(-24).map(d => ({
+    time:     (() => { try { const t=d.timestamp; return t?(t.includes('T')?format(parseISO(t),'HH:mm'):t.slice(11,16)):'' } catch{return''} })(),
+    rain:     +(d.rainfall_mm_1h||0).toFixed(1),
+    prob:     +((d.cloudburst_probability||0)*100).toFixed(1),
+    humidity: +(d.humidity_pct||0).toFixed(0),
+    wind:     +(d.wind_speed_kmh||0).toFixed(0),
+    pressure: +(d.pressure_hpa||0).toFixed(0),
   }))
-  const selectedForecast = forecast[selectedDay] || null
-  const peakDay    = forecast.length ? forecast.reduce((mx,d) => d.cbRisk > mx.cbRisk ? d : mx, forecast[0]) : null
 
-  const card = { background: darkMode ? '#1c2230' : '#ffffff', border:`0.5px solid ${darkMode ? 'rgba(99,120,170,0.18)' : 'rgba(0,0,0,0.1)'}`, borderRadius:'14px', padding:'18px 20px' }
-  const textPrimary   = darkMode ? '#e6edf3' : '#1a1a2e'
-  const textSecondary = darkMode ? '#8b949e' : '#6b7280'
-  const bgPrimary     = darkMode ? '#0d1117' : '#f0f2f5'
-  const bgCard        = darkMode ? '#1c2230' : '#ffffff'
-  const bgTopbar      = darkMode ? '#161b22' : '#ffffff'
+  const BG   = dark ? '#070b14' : '#f0f2f5'
+  const CARD = dark ? 'rgba(255,255,255,0.03)' : '#ffffff'
+  const BORDER = dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)'
+  const TP   = dark ? '#e6edf3' : '#111827'
+  const TS   = dark ? '#8b949e' : '#6b7280'
+  const TOPBG= dark ? 'rgba(7,11,20,0.9)' : 'rgba(255,255,255,0.95)'
+
+  const card = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:'16px', padding:'20px 22px' }
 
   return (
-    <div style={{ background: bgPrimary, minHeight:'100vh', paddingBottom:'40px', position:'relative', overflow:'hidden' }}>
+    <div style={{ background:BG, minHeight:'100vh', paddingBottom:'50px', position:'relative', overflow:'hidden' }}>
 
-      {/* RAIN ANIMATION */}
-      {rainEffect && (
-        <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
-          {Array.from({length:40}).map((_,i) => (
-            <div key={i} style={{
-              position:'absolute', top:'-20px', left:`${Math.random()*100}%`,
-              width:'2px', height:`${15+Math.random()*25}px`,
-              background:'rgba(79,195,247,0.3)', borderRadius:'2px',
-              animation:`rainDrop ${0.6+Math.random()*0.8}s linear infinite`,
-              animationDelay:`${Math.random()*1.5}s`,
-            }} />
+      <style>{`
+        @keyframes rainFall{0%{transform:translateY(-20px);opacity:0}10%{opacity:1}90%{opacity:0.6}100%{transform:translateY(100vh);opacity:0}}
+        @keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+        .tab-btn:hover{color:#e6edf3 !important;background:rgba(255,255,255,0.06) !important}
+        .action-btn:hover{border-color:rgba(79,195,247,0.5) !important;color:#4fc3f7 !important;background:rgba(79,195,247,0.08) !important}
+        .nearby-card:hover{border-color:rgba(79,195,247,0.4) !important;background:rgba(79,195,247,0.05) !important}
+        .quick-btn:hover{border-color:#185FA5 !important;color:#4fc3f7 !important}
+      `}</style>
+
+      {/* Rain FX */}
+      {rainFx && (
+        <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
+          {Array.from({length:35}).map((_,i)=>(
+            <div key={i} style={{ position:'absolute', top:'-20px', left:`${Math.random()*100}%`, width:'1.5px', height:`${12+Math.random()*22}px`, background:'rgba(79,195,247,0.25)', animation:`rainFall ${0.5+Math.random()*0.9}s linear infinite`, animationDelay:`${Math.random()*2}s` }} />
           ))}
-          <style>{`@keyframes rainDrop { 0%{transform:translateY(-20px);opacity:0} 10%{opacity:1} 90%{opacity:0.8} 100%{transform:translateY(100vh);opacity:0} }`}</style>
+          <div style={{ position:'absolute', inset:0, background:`radial-gradient(ellipse at center, ${rcolor}08 0%, transparent 70%)` }} />
         </div>
       )}
 
-      {/* TOP BAR */}
-      <div style={{ background: bgTopbar, borderBottom:`0.5px solid ${darkMode?'rgba(99,120,170,0.18)':'rgba(0,0,0,0.1)'}`, padding:'10px 20px', display:'flex', alignItems:'center', gap:'12px', flexWrap:'wrap', position:'sticky', top:0, zIndex:100 }}>
+      {/* Grid background */}
+      <div style={{ position:'fixed', inset:0, backgroundImage:'linear-gradient(rgba(79,195,247,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(79,195,247,0.02) 1px, transparent 1px)', backgroundSize:'60px 60px', pointerEvents:'none', zIndex:0 }} />
+
+      {/* TOP NAV */}
+      <div style={{ position:'sticky', top:0, zIndex:100, background:TOPBG, borderBottom:`1px solid ${BORDER}`, backdropFilter:'blur(20px)', padding:'10px 24px', display:'flex', alignItems:'center', gap:'12px', flexWrap:'wrap' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
-          <div style={{ width:32, height:32, background:'linear-gradient(135deg,#185FA5,#1D9E75)', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px' }}>⛈️</div>
+          {onBack && (
+            <button onClick={onBack} style={{ width:32, height:32, borderRadius:'8px', background:'rgba(255,255,255,0.05)', border:`1px solid ${BORDER}`, color:TS, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', transition:'all .15s' }}
+              onMouseEnter={e=>{e.currentTarget.style.color='#4fc3f7';e.currentTarget.style.borderColor='rgba(79,195,247,0.4)'}}
+              onMouseLeave={e=>{e.currentTarget.style.color=TS;e.currentTarget.style.borderColor=BORDER}}>
+              ←
+            </button>
+          )}
+          <div style={{ width:34, height:34, background:'linear-gradient(135deg,#185FA5,#1D9E75)', borderRadius:'10px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px', flexShrink:0 }}>⛈</div>
           <div>
-            <div style={{ fontFamily:"'Space Mono',monospace", fontSize:'13px', fontWeight:700, color: textPrimary }}>CLOUDBURST·AI</div>
-            <div style={{ fontSize:'10px', color: textSecondary }}>
-              {apiError ? '⚠️ Simulated data' : '● Live — OpenWeatherMap'}
-            </div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:'14px', fontWeight:800, color:TP, letterSpacing:'0.3px' }}>CLOUDBURST<span style={{ color:'#4fc3f7' }}>·AI</span></div>
+            <div style={{ fontSize:'10px', color: apiError ? '#EF9F27' : '#1D9E75', letterSpacing:'0.3px' }}>{apiError ? '⚠ Simulated' : '● Live'}</div>
           </div>
         </div>
 
-        {onBack && (
-          <button onClick={onBack} style={{ padding:'6px 12px', background:'rgba(255,255,255,0.05)', border:'0.5px solid rgba(99,120,170,0.3)', borderRadius:'8px', color:'#8b949e', fontSize:'12px', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:'6px', flexShrink:0, transition:'all .15s' }}
-            onMouseEnter={e=>{e.currentTarget.style.color='#e6edf3';e.currentTarget.style.borderColor='rgba(99,120,170,0.6)'}}
-            onMouseLeave={e=>{e.currentTarget.style.color='#8b949e';e.currentTarget.style.borderColor='rgba(99,120,170,0.3)'}}>
-            ← Home
-          </button>
-        )}
-        <LocationSearch onSelect={loc => { setActiveLocation(loc); setLoading(true); setSelectedDay(0) }} currentName={activeLocation.name} lang={lang} />
+        <SearchBar onSelect={l=>{setLoc(l);setLoading(true);setSelDay(0)}} currentName={loc.name} lang={lang} />
 
-        <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0, marginLeft:'auto', flexWrap:'wrap' }}>
-          <span style={{ fontFamily:"'Space Mono',monospace", fontSize:'10px', color: textSecondary }}>{clock} UTC</span>
-
-          {/* Language toggle */}
-          <button onClick={() => setLang(l => l==='en'?'hi':'en')} title="Toggle Hindi/English"
-            style={{ padding:'5px 10px', borderRadius:'16px', border:`0.5px solid ${darkMode?'rgba(99,120,170,0.3)':'rgba(0,0,0,0.2)'}`, background:'transparent', color: textSecondary, fontSize:'11px', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-            {lang === 'en' ? 'हिं' : 'EN'}
-          </button>
-
-          {/* Dark mode toggle */}
-          <button onClick={() => setDarkMode(d => !d)} title="Toggle dark/light mode"
-            style={{ padding:'5px 10px', borderRadius:'16px', border:`0.5px solid ${darkMode?'rgba(99,120,170,0.3)':'rgba(0,0,0,0.2)'}`, background:'transparent', color: textSecondary, fontSize:'13px', cursor:'pointer' }}>
-            {darkMode ? '☀️' : '🌙'}
-          </button>
-
-          {/* Notifications */}
-          <button onClick={toggleNotifications} title={notifEnabled ? 'Disable alerts' : 'Enable browser alerts'}
-            style={{ padding:'5px 10px', borderRadius:'16px', border:`0.5px solid ${notifEnabled?'#EF9F27':'rgba(99,120,170,0.3)'}`, background: notifEnabled?'rgba(239,159,39,0.1)':'transparent', color: notifEnabled?'#EF9F27': textSecondary, fontSize:'13px', cursor:'pointer' }}>
-            🔔
-          </button>
-
-          {/* Share */}
-          <button onClick={shareLocation} title="Share forecast"
-            style={{ padding:'5px 10px', borderRadius:'16px', border:`0.5px solid rgba(99,120,170,0.3)`, background:'transparent', color: textSecondary, fontSize:'13px', cursor:'pointer' }}>
-            🔗
-          </button>
-
-          {/* Download */}
-          <button onClick={downloadReport} title="Download report"
-            style={{ padding:'5px 10px', borderRadius:'16px', border:`0.5px solid rgba(99,120,170,0.3)`, background:'transparent', color: textSecondary, fontSize:'13px', cursor:'pointer' }}>
-            ⬇️
-          </button>
-
-          {/* Compare */}
-          <button onClick={() => setShowCompare(true)} title="Compare cities"
-            style={{ padding:'5px 10px', borderRadius:'16px', border:`0.5px solid rgba(99,120,170,0.3)`, background:'transparent', color: textSecondary, fontSize:'11px', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-            Compare
-          </button>
-
-          {/* Add custom location */}
-          <button onClick={() => setShowCustomLoc(true)} title="Add custom location"
-            style={{ padding:'5px 10px', borderRadius:'16px', border:`0.5px solid rgba(79,195,247,0.4)`, background:'rgba(79,195,247,0.08)', color:'#4fc3f7', fontSize:'11px', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-            + Custom
-          </button>
-
-          <div style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 9px', border:'0.5px solid rgba(29,158,117,0.4)', borderRadius:'18px', fontSize:'10px', color:'#1D9E75' }}>
-            <div className="pulse-dot" style={{ background:'#1D9E75' }}></div>LIVE
+        <div style={{ display:'flex', alignItems:'center', gap:'6px', marginLeft:'auto', flexWrap:'wrap' }}>
+          <span style={{ fontFamily:"'Space Mono',monospace", fontSize:'10px', color:TS, marginRight:'4px' }}>{clock} UTC</span>
+          {[
+            [lang==='en'?'हिं':'EN', ()=>setLang(l=>l==='en'?'hi':'en'), lang==='hi'],
+            [dark?'☀️':'🌙', ()=>setDark(d=>!d), false],
+            ['🔔', toggleNotif, notif],
+            ['🔗', share, false],
+            ['⬇️', download, false],
+          ].map(([icon, fn, active], i) => (
+            <button key={i} onClick={fn} className="action-btn" style={{
+              width:32, height:32, borderRadius:'8px', background: active?'rgba(79,195,247,0.12)':'rgba(255,255,255,0.04)',
+              border:`1px solid ${active?'rgba(79,195,247,0.4)':BORDER}`,
+              color: active?'#4fc3f7':TS, cursor:'pointer', fontSize:'14px', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .15s'
+            }}>{icon}</button>
+          ))}
+          <button onClick={()=>setShowCompare(true)} className="action-btn" style={{ padding:'0 12px', height:32, borderRadius:'8px', background:'rgba(255,255,255,0.04)', border:`1px solid ${BORDER}`, color:TS, cursor:'pointer', fontSize:'11px', fontWeight:500, fontFamily:"'DM Sans',sans-serif", transition:'all .15s' }}>Compare</button>
+          <div style={{ display:'flex', alignItems:'center', gap:'5px', padding:'4px 10px', border:'1px solid rgba(29,158,117,0.4)', borderRadius:'20px', fontSize:'10px', color:'#1D9E75' }}>
+            <div style={{ width:6,height:6,borderRadius:'50%',background:'#1D9E75',animation:'pulse 1.5s infinite' }} />LIVE
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth:'1200px', margin:'0 auto', padding:'18px 20px', position:'relative', zIndex:1 }}>
+      <div style={{ maxWidth:'1280px', margin:'0 auto', padding:'20px 24px', position:'relative', zIndex:1 }}>
 
         {/* LOCATION HEADER */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'16px', flexWrap:'wrap', gap:'8px' }}>
-          <div>
-            <h1 style={{ fontSize:'22px', fontWeight:600, color: textPrimary, margin:0 }}>{activeLocation.name}</h1>
-            <p style={{ fontSize:'12px', color: textSecondary, margin:'3px 0 0' }}>
-              {activeLocation.state} &nbsp;·&nbsp; {activeLocation.lat.toFixed(4)}°N, {activeLocation.lon.toFixed(4)}°E &nbsp;·&nbsp; {activeLocation.elev}m
-              {lastUpdated && <span style={{ marginLeft:'10px', color:'#1D9E75' }}>Updated {format(lastUpdated,'HH:mm:ss')}</span>}
+        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'18px', flexWrap:'wrap', gap:'10px' }}>
+          <div style={{ animation:'slideIn 0.4s ease both' }}>
+            <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:'28px', fontWeight:800, color:TP, margin:0, display:'flex', alignItems:'center', gap:'10px' }}>
+              {loc.name}
+              {pred && <span style={{ fontSize:'13px', fontWeight:500, padding:'4px 10px', borderRadius:'20px', background:`${rcolor}18`, color:rcolor, border:`1px solid ${rcolor}44`, verticalAlign:'middle' }}>{pred.risk_level}</span>}
+            </h1>
+            <p style={{ fontSize:'12px', color:TS, margin:'4px 0 0', display:'flex', alignItems:'center', gap:'8px' }}>
+              <span>{loc.state}</span>
+              <span style={{ opacity:0.4 }}>·</span>
+              <span>{loc.lat.toFixed(3)}°N, {loc.lon.toFixed(3)}°E</span>
+              <span style={{ opacity:0.4 }}>·</span>
+              <span>{loc.elev}m elev.</span>
+              {updated && <><span style={{ opacity:0.4 }}>·</span><span style={{ color:'#1D9E75' }}>Updated {format(updated,'HH:mm:ss')}</span></>}
             </p>
           </div>
-          <div style={{ display:'flex', gap:'5px', flexWrap:'wrap' }}>
+          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
             {['Shimla','Manali','Dehradun','Srinagar','Cherrapunji','Mumbai','Kharar'].map(name => {
-              const loc = LOCATIONS.find(l => l.name === name)
-              return loc ? (
-                <button key={name} onClick={() => { setActiveLocation(loc); setSelectedDay(0) }} style={{
-                  padding:'3px 10px', borderRadius:'14px', cursor:'pointer', fontSize:'11px', fontFamily:"'DM Sans',sans-serif", transition:'all .15s',
-                  border:`0.5px solid ${activeLocation.name===name?'#185FA5':'rgba(99,120,170,0.25)'}`,
-                  background: activeLocation.name===name?'#185FA5':'transparent',
-                  color: activeLocation.name===name?'#fff': textSecondary,
-                }}>{name}</button>
-              ) : null
+              const l = LOCATIONS.find(x=>x.name===name)
+              return l ? <button key={name} className="quick-btn" onClick={()=>{setLoc(l);setSelDay(0)}} style={{ padding:'4px 11px', borderRadius:'20px', cursor:'pointer', fontSize:'11px', fontFamily:"'DM Sans',sans-serif", transition:'all .15s', border:`1px solid ${loc.name===name?'#185FA5':BORDER}`, background:loc.name===name?'#185FA5':'transparent', color:loc.name===name?'#fff':TS }}>{name}</button> : null
             })}
-            <button onClick={() => setShowNearby(s => !s)} style={{ padding:'3px 10px', borderRadius:'14px', cursor:'pointer', fontSize:'11px', fontFamily:"'DM Sans',sans-serif", border:`0.5px solid ${showNearby?'#1D9E75':'rgba(99,120,170,0.25)'}`, background: showNearby?'rgba(29,158,117,0.1)':'transparent', color: showNearby?'#1D9E75': textSecondary }}>
-              Nearby ▼
-            </button>
+            <button onClick={()=>setShowNearby(s=>!s)} className="quick-btn" style={{ padding:'4px 11px', borderRadius:'20px', cursor:'pointer', fontSize:'11px', fontFamily:"'DM Sans',sans-serif", transition:'all .15s', border:`1px solid ${showNearby?'#1D9E75':BORDER}`, background:showNearby?'rgba(29,158,117,0.1)':'transparent', color:showNearby?'#1D9E75':TS }}>Nearby ▾</button>
           </div>
         </div>
 
-        {/* NEARBY PANEL */}
+        {/* NEARBY */}
         {showNearby && (
-          <div style={{ ...card, marginBottom:'12px', padding:'14px 18px' }}>
-            <p style={{ fontSize:'11px', color: textSecondary, textTransform:'uppercase', letterSpacing:'0.6px', marginBottom:'10px', margin:'0 0 10px' }}>5 Nearest Stations to {activeLocation.name}</p>
-            <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
-              {nearbyStations.map(s => (
-                <div key={s.id} onClick={() => { setActiveLocation(s); setShowNearby(false); setSelectedDay(0) }}
-                  style={{ padding:'8px 12px', borderRadius:'8px', background: darkMode?'#161b22':'#f5f5f5', border:'0.5px solid rgba(99,120,170,0.2)', cursor:'pointer', minWidth:'140px' }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor='#185FA5'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor='rgba(99,120,170,0.2)'}>
-                  <div style={{ fontSize:'12px', color: textPrimary, fontWeight:500 }}>{s.name}</div>
-                  <div style={{ fontSize:'10px', color: textSecondary, marginTop:'2px' }}>{s.state}</div>
-                  <div style={{ fontSize:'10px', color:'#4fc3f7', marginTop:'3px' }}>{s.dist.toFixed(0)} km away</div>
+          <div style={{ ...card, marginBottom:'14px', animation:'slideIn .3s ease both' }}>
+            <p style={{ fontSize:'11px', color:TS, textTransform:'uppercase', letterSpacing:'0.6px', margin:'0 0 12px', fontWeight:500 }}>Nearest to {loc.name}</p>
+            <div style={{ display:'flex', gap:'10px', flexWrap:'wrap' }}>
+              {nearby.map(s => (
+                <div key={s.id} className="nearby-card" onClick={()=>{setLoc(s);setShowNearby(false);setSelDay(0)}}
+                  style={{ padding:'10px 14px', borderRadius:'10px', background:'rgba(255,255,255,0.03)', border:`1px solid ${BORDER}`, cursor:'pointer', transition:'all .15s', minWidth:'130px' }}>
+                  <div style={{ fontSize:'12px', color:TP, fontWeight:500 }}>{s.name}</div>
+                  <div style={{ fontSize:'10px', color:TS, marginTop:'2px' }}>{s.state}</div>
+                  <div style={{ fontSize:'11px', color:'#4fc3f7', marginTop:'4px', fontFamily:"'Space Mono',monospace" }}>{s.dist.toFixed(0)} km</div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ALERT BANNER */}
-        {prediction && prediction.risk_level !== 'LOW' && (
-          <div style={{ marginBottom:'14px' }}>
-            <AlertBanner riskLevel={prediction.risk_level} probability={prediction.probability}
-              stationName={activeLocation.name} recommendations={prediction.recommendations} />
-          </div>
-        )}
+        {/* ALERT */}
+        {pred && pred.risk_level !== 'LOW' && <div style={{ marginBottom:'14px' }}><AlertBanner riskLevel={pred.risk_level} probability={pred.probability} stationName={loc.name} recommendations={pred.recommendations} /></div>}
 
-        {/* API STATUS BADGE */}
-        {apiError && (
-          <div style={{ marginBottom:'12px', padding:'8px 14px', background:'rgba(239,159,39,0.1)', border:'0.5px solid rgba(239,159,39,0.4)', borderRadius:'8px', fontSize:'12px', color:'#EF9F27' }}>
-            ⚠️ Could not reach OpenWeatherMap API — showing simulated data. Check your internet connection or try again later.
+        {/* RISK HERO BANNER */}
+        <div style={{ marginBottom:'16px', padding:'20px 24px', background:`linear-gradient(135deg, ${rcolor}10, rgba(0,0,0,0.2))`, border:`1px solid ${rcolor}33`, borderRadius:'16px', display:'flex', alignItems:'center', gap:'20px', flexWrap:'wrap', animation:'slideIn .4s ease 0.1s both' }}>
+          <div>
+            <div style={{ fontFamily:"'Space Mono',monospace", fontSize:'48px', fontWeight:700, color:rcolor, lineHeight:1 }}>{Math.round((pred?.probability||0)*100)}<span style={{ fontSize:'22px' }}>%</span></div>
+            <div style={{ fontSize:'12px', color:TS, marginTop:'4px' }}>Cloudburst Probability</div>
           </div>
-        )}
-
-        {/* METRIC CARDS */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:'10px', marginBottom:'14px' }}>
-          <MetricCard label={lang==='hi'?HINDI.rainfall:'Rainfall 1h'} value={(weather.rainfall_mm_1h||0).toFixed(1)} unit="mm"
-            delta={(weather.rainfall_mm_1h||0)-(prevW.rainfall_mm_1h||0)}
-            deltaLabel={`${Math.abs(((weather.rainfall_mm_1h||0)-(prevW.rainfall_mm_1h||0))).toFixed(1)} mm vs prev`} colorize />
-          <MetricCard label={lang==='hi'?HINDI.humidity:'Humidity'} value={(weather.humidity_pct||0).toFixed(0)} unit="%"
-            deltaLabel={(weather.humidity_pct||0)>90?'very high':(weather.humidity_pct||0)>75?'elevated':'normal'}
-            colorize delta={(weather.humidity_pct||0)>90?1:-1} />
-          <MetricCard label={lang==='hi'?HINDI.pressure:'Pressure'} value={(weather.pressure_hpa||0).toFixed(1)} unit="hPa"
-            delta={(weather.pressure_hpa||0)-(prevW.pressure_hpa||0)}
-            deltaLabel={`${(weather.pressure_hpa||0)-(prevW.pressure_hpa||0)>=0?'stable':'dropping'} ${Math.abs(((weather.pressure_hpa||0)-(prevW.pressure_hpa||0))).toFixed(1)} hPa`} />
-          <MetricCard label={lang==='hi'?HINDI.wind:'Wind Speed'} value={(weather.wind_speed_kmh||0).toFixed(0)} unit="km/h"
-            deltaLabel={(weather.wind_speed_kmh||0)>40?'strong':(weather.wind_speed_kmh||0)>20?'moderate':'light'}
-            colorize delta={(weather.wind_speed_kmh||0)>30?1:-1} />
-        </div>
-
-        {/* EXTRA METRICS ROW */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:'10px', marginBottom:'14px' }}>
-          <div style={{ ...card, padding:'12px 14px' }}>
-            <p style={{ fontSize:'10px', color: textSecondary, margin:'0 0 4px', textTransform:'uppercase', letterSpacing:'0.4px' }}>Feels Like</p>
-            <p style={{ fontFamily:"'Space Mono',monospace", fontSize:'18px', fontWeight:700, color: textPrimary, margin:0 }}>{weather.feels_like || '—'}°C</p>
+          <div style={{ width:'1px', height:'56px', background:'rgba(255,255,255,0.08)' }} />
+          <div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:'22px', fontWeight:800, color:rcolor }}>{lang==='hi'?HINDI[pred?.risk_level||'LOW']:pred?.risk_level||'LOW'} RISK</div>
+            <div style={{ fontSize:'12px', color:TS, marginTop:'4px', maxWidth:'340px' }}>{pred?.recommendations?.[0] || 'All parameters normal. Continue monitoring.'}</div>
           </div>
-          <div style={{ ...card, padding:'12px 14px' }}>
-            <p style={{ fontSize:'10px', color: textSecondary, margin:'0 0 4px', textTransform:'uppercase', letterSpacing:'0.4px' }}>Rain Intensity</p>
-            <p style={{ fontSize:'13px', fontWeight:600, color: rainInt.color, margin:0 }}>{rainInt.label}</p>
-            <p style={{ fontSize:'10px', color: textSecondary, margin:'2px 0 0' }}>{weather.rainfall_mm_1h||0} mm/h</p>
-          </div>
-          <div style={{ ...card, padding:'12px 14px' }}>
-            <p style={{ fontSize:'10px', color: textSecondary, margin:'0 0 4px', textTransform:'uppercase', letterSpacing:'0.4px' }}>Cloud Cover</p>
-            <p style={{ fontFamily:"'Space Mono',monospace", fontSize:'18px', fontWeight:700, color: textPrimary, margin:0 }}>{weather.cloud_cover_pct||0}%</p>
-          </div>
-          <div style={{ ...card, padding:'12px 14px' }}>
-            <p style={{ fontSize:'10px', color: textSecondary, margin:'0 0 4px', textTransform:'uppercase', letterSpacing:'0.4px' }}>Visibility</p>
-            <p style={{ fontFamily:"'Space Mono',monospace", fontSize:'18px', fontWeight:700, color: textPrimary, margin:0 }}>{weather.visibility_km||10} km</p>
-          </div>
-        </div>
-
-        {/* MAIN GRID */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:'14px', marginBottom:'14px' }}>
-          <div style={card}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px' }}>
-              <p style={{ fontSize:'11px', fontWeight:500, color: textSecondary, textTransform:'uppercase', letterSpacing:'0.6px', margin:0 }}>
-                {lang==='hi'?'24 घंटे का रुझान':'24-Hour Weather Trend'}
-              </p>
-              <div style={{ display:'flex', gap:'8px' }}>
-                <button onClick={() => setShowRainChart(false)} style={{ fontSize:'10px', padding:'3px 8px', borderRadius:'8px', border:'0.5px solid rgba(99,120,170,0.3)', background: !showRainChart?'#185FA5':'transparent', color:!showRainChart?'#fff': textSecondary, cursor:'pointer' }}>Trend</button>
-                <button onClick={() => setShowRainChart(true)} style={{ fontSize:'10px', padding:'3px 8px', borderRadius:'8px', border:'0.5px solid rgba(99,120,170,0.3)', background: showRainChart?'#185FA5':'transparent', color:showRainChart?'#fff': textSecondary, cursor:'pointer' }}>Rain Chart</button>
+          <div style={{ marginLeft:'auto', display:'flex', gap:'20px', flexWrap:'wrap' }}>
+            {[['Feels Like',`${w.feels_like||'—'}°C`,'🌡️'],['Condition',w.weather_main||'—','🌤'],['Rain Intensity',rainInt.label,'🌧']].map(([l,v,ic])=>(
+              <div key={l} style={{ textAlign:'center' }}>
+                <div style={{ fontSize:'18px', marginBottom:'4px' }}>{ic}</div>
+                <div style={{ fontFamily:"'Space Mono',monospace", fontSize:'13px', fontWeight:700, color:TP }}>{v}</div>
+                <div style={{ fontSize:'10px', color:TS }}>{l}</div>
               </div>
-            </div>
-            {loading ? (
-              <div style={{ height:'200px', display:'flex', alignItems:'center', justifyContent:'center', color: textSecondary, fontSize:'12px' }}>{lang==='hi'?HINDI.loading:'Loading live data...'}</div>
-            ) : showRainChart ? (
-              <div>
-                <div style={{ display:'flex', gap:'8px', marginBottom:'10px', flexWrap:'wrap' }}>
-                  {[['None','#484f58',[0,0]],['Light','#4fc3f7',[0,2.5]],['Moderate','#185FA5',[2.5,7.5]],['Heavy','#EF9F27',[7.5,35]],['Extreme','#E24B4A',[35,500]]].map(([lbl,col]) => (
-                    <span key={lbl} style={{ fontSize:'10px', color:col, padding:'2px 7px', border:`0.5px solid ${col}44`, borderRadius:'8px', background:`${col}15` }}>{lbl}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* STAT CARDS */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:'12px', marginBottom:'16px', animation:'slideIn .4s ease 0.15s both' }}>
+          <StatCard label="Rainfall 1h" value={(w.rainfall_mm_1h||0).toFixed(1)} unit="mm" icon="🌧️"
+            sub={`Rain: ${rainInt.label}`} subColor={rainInt.color} accentColor={rainInt.color} />
+          <StatCard label="Humidity" value={(w.humidity_pct||0).toFixed(0)} unit="%" icon="💧"
+            sub={(w.humidity_pct||0)>90?'Very high':(w.humidity_pct||0)>75?'Elevated':'Normal'}
+            subColor={(w.humidity_pct||0)>90?'#E24B4A':(w.humidity_pct||0)>75?'#EF9F27':'#639922'} accentColor='#185FA5' />
+          <StatCard label="Pressure" value={(w.pressure_hpa||0).toFixed(0)} unit="hPa" icon="📊"
+            sub={(w.pressure_hpa||0)<1000?'Low — storm risk':(w.pressure_hpa||0)<1005?'Below normal':'Normal'}
+            subColor={(w.pressure_hpa||0)<1000?'#E24B4A':(w.pressure_hpa||0)<1005?'#EF9F27':'#639922'} accentColor='#7f77dd' />
+          <StatCard label="Wind Speed" value={(w.wind_speed_kmh||0).toFixed(0)} unit="km/h" icon="💨"
+            sub={(w.wind_speed_kmh||0)>40?'Strong':(w.wind_speed_kmh||0)>20?'Moderate':'Light'}
+            subColor={(w.wind_speed_kmh||0)>40?'#E24B4A':(w.wind_speed_kmh||0)>20?'#EF9F27':'#639922'} accentColor='#1D9E75' />
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:'12px', marginBottom:'16px' }}>
+          <StatCard label="Cloud Cover" value={(w.cloud_cover_pct||0).toFixed(0)} unit="%" icon="☁️" accentColor='#8b949e' />
+          <StatCard label="Visibility" value={(w.visibility_km||10).toFixed(0)} unit="km" icon="👁️" accentColor='#4fc3f7' />
+          <StatCard label="Dew Point" value={(w.dewpoint_c||0).toFixed(1)} unit="°C" icon="🌡️" accentColor='#1D9E75' />
+          <StatCard label="Radar dBZ" value={Math.min(75,((w.rainfall_mm_1h||0)*1.2+10)).toFixed(0)} unit="dBZ" icon="📡"
+            sub={((w.rainfall_mm_1h||0)*1.2+10)>50?'High reflectivity':'Normal'} accentColor='#EF9F27' />
+        </div>
+
+        {/* TABS */}
+        <div style={{ display:'flex', gap:'4px', marginBottom:'14px', background:'rgba(255,255,255,0.03)', border:`1px solid ${BORDER}`, borderRadius:'12px', padding:'4px', width:'fit-content' }}>
+          {[['overview','Overview'],['forecast','7-Day Forecast'],['charts','Charts'],['manual','Manual Predict']].map(([id,label])=>(
+            <button key={id} className="tab-btn" onClick={()=>setTab(id)} style={{
+              padding:'7px 16px', borderRadius:'9px', border:'none', cursor:'pointer', fontSize:'12px', fontWeight:500,
+              fontFamily:"'DM Sans',sans-serif", transition:'all .15s',
+              background: tab===id ? 'rgba(24,95,165,0.8)' : 'transparent',
+              color:      tab===id ? '#fff'               : TS,
+            }}>{label}</button>
+          ))}
+        </div>
+
+        {/* TAB: OVERVIEW */}
+        {tab==='overview' && (
+          <div style={{ animation:'slideIn .3s ease both' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:'14px', marginBottom:'14px' }}>
+              <div style={card}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'14px' }}>
+                  <p style={{ fontSize:'12px', fontWeight:600, color:TS, textTransform:'uppercase', letterSpacing:'0.5px', margin:0 }}>24-Hour Weather Trend</p>
+                  <div style={{ display:'flex', gap:'10px', fontSize:'10px', color:TS }}>
+                    <span style={{ display:'flex', alignItems:'center', gap:'5px' }}><span style={{ width:8,height:8,background:'#185FA5',borderRadius:'2px',display:'inline-block' }}></span>Rainfall</span>
+                    <span style={{ display:'flex', alignItems:'center', gap:'5px' }}><span style={{ width:14,height:2,background:'#E24B4A',display:'inline-block' }}></span>CB Prob</span>
+                  </div>
+                </div>
+                {loading ? <div style={{ height:200,display:'flex',alignItems:'center',justifyContent:'center',color:TS,fontSize:'12px' }}>Loading live data...</div> : (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <AreaChart data={chartData} margin={{top:4,right:4,left:-16,bottom:0}}>
+                      <defs>
+                        <linearGradient id="rainG" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#185FA5" stopOpacity={0.4}/><stop offset="95%" stopColor="#185FA5" stopOpacity={0}/></linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                      <XAxis dataKey="time" tick={{fill:TS,fontSize:9}} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                      <YAxis yAxisId="l" tick={{fill:TS,fontSize:9}} tickLine={false} axisLine={false} />
+                      <YAxis yAxisId="r" orientation="right" domain={[0,100]} tick={{fill:'#E24B4A',fontSize:9}} tickLine={false} axisLine={false} tickFormatter={v=>v+'%'} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <ReferenceLine yAxisId="l" y={100} stroke="#E24B4A" strokeDasharray="4 2" strokeWidth={1} />
+                      <Area yAxisId="l" type="monotone" dataKey="rain" name="Rain mm/h" stroke="#185FA5" strokeWidth={2} fill="url(#rainG)" dot={false} />
+                      <Line yAxisId="r" type="monotone" dataKey="prob" name="CB Prob %" stroke="#E24B4A" strokeWidth={2} dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+              <div style={{ ...card, display:'flex', flexDirection:'column', gap:'14px' }}>
+                <p style={{ fontSize:'12px', fontWeight:600, color:TS, textTransform:'uppercase', letterSpacing:'0.5px', margin:0 }}>Risk Assessment</p>
+                <div style={{ display:'flex', justifyContent:'center' }}>
+                  <RiskGauge probability={pred?.probability||0} riskLevel={pred?.risk_level||'LOW'} size={140} />
+                </div>
+                <div>
+                  <p style={{ fontSize:'11px', color:TS, marginBottom:'8px', fontWeight:500 }}>Contributing factors</p>
+                  {(pred?.contributing_factors||[]).map((f,i)=>(
+                    <div key={i} style={{ display:'flex', alignItems:'center', gap:'8px', padding:'5px 0', borderBottom:`0.5px solid ${BORDER}`, fontSize:'11px' }}>
+                      <div style={{ width:5,height:5,borderRadius:'50%',background:f.severity==='high'?'#E24B4A':f.severity==='moderate'?'#EF9F27':'#639922',flexShrink:0 }} />
+                      <span style={{ flex:1,color:TP }}>{f.factor}</span>
+                      <span style={{ fontFamily:"'Space Mono',monospace",fontSize:'10px',color:TS }}>{f.value}</span>
+                    </div>
                   ))}
                 </div>
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={chartData} margin={{ top:0,right:0,left:-20,bottom:0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(99,120,170,0.08)" vertical={false} />
-                    <XAxis dataKey="time" tick={{ fill: textSecondary, fontSize:9 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                    <YAxis tick={{ fill: textSecondary, fontSize:9 }} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={{ background: bgCard, border:'0.5px solid rgba(99,120,170,0.3)', borderRadius:'8px', fontSize:'11px' }} />
-                    <ReferenceLine y={100} stroke="#E24B4A" strokeDasharray="4 2" label={{ value:'Cloudburst', fill:'#E24B4A', fontSize:9, position:'right' }} />
-                    <ReferenceLine y={35} stroke="#EF9F27" strokeDasharray="4 2" label={{ value:'Heavy', fill:'#EF9F27', fontSize:9, position:'right' }} />
-                    <Bar dataKey="rain" name="Rain mm/h" fill="#185FA5" radius={[2,2,0,0]} maxBarSize={14} />
-                  </BarChart>
+              </div>
+            </div>
+
+            {/* Bottom row */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:'14px' }}>
+              <div style={card}>
+                <p style={{ fontSize:'12px', fontWeight:600, color:TS, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'12px', marginTop:0 }}>Humidity & Wind</p>
+                <ResponsiveContainer width="100%" height={130}>
+                  <AreaChart data={chartData} margin={{top:0,right:0,left:-20,bottom:0}}>
+                    <defs>
+                      <linearGradient id="humG2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#185FA5" stopOpacity={0.3}/><stop offset="95%" stopColor="#185FA5" stopOpacity={0}/></linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                    <XAxis dataKey="time" tick={{fill:TS,fontSize:9}} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={{fill:TS,fontSize:9}} tickLine={false} axisLine={false} domain={[0,110]} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Area type="monotone" dataKey="humidity" name="Humidity %" stroke="#185FA5" strokeWidth={1.5} fill="url(#humG2)" dot={false} />
+                    <Area type="monotone" dataKey="wind" name="Wind km/h" stroke="#7f77dd" strokeWidth={1.5} fill="none" dot={false} />
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
-            ) : (
-              <WeatherChart data={weatherHistory.slice(-24)} height={200} />
-            )}
-          </div>
-          <div style={{ ...card, display:'flex', flexDirection:'column', alignItems:'center', gap:'12px' }}>
-            <p style={{ fontSize:'11px', fontWeight:500, color: textSecondary, textTransform:'uppercase', letterSpacing:'0.6px', alignSelf:'flex-start', width:'100%', margin:0 }}>
-              {lang==='hi'?HINDI.risk:'Cloudburst Risk'}
-            </p>
-            <RiskGauge probability={prediction?.probability||0} riskLevel={prediction?.risk_level||'LOW'} size={145} />
-            <div style={{ width:'100%' }}>
-              <p style={{ fontSize:'11px', color: textSecondary, marginBottom:'6px', fontWeight:500 }}>Factors</p>
-              <ul style={{ listStyle:'none', padding:0, margin:0 }}>
-                {(prediction?.contributing_factors||[]).map((f,i) => (
-                  <li key={i} style={{ display:'flex', alignItems:'center', gap:'7px', padding:'4px 0', borderBottom:'0.5px solid rgba(99,120,170,0.1)', fontSize:'11px' }}>
-                    <span style={{ width:6,height:6,borderRadius:'50%',flexShrink:0,background:f.severity==='high'?'#E24B4A':f.severity==='moderate'?'#EF9F27':'#639922' }}></span>
-                    <span style={{ flex:1, color: textPrimary }}>{f.factor}</span>
-                    <span style={{ fontFamily:"'Space Mono',monospace",fontSize:'10px',color: textSecondary }}>{f.value}</span>
-                  </li>
+              <div style={card}>
+                <p style={{ fontSize:'12px', fontWeight:600, color:TS, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'14px', marginTop:0 }}>Model Performance</p>
+                {[['Accuracy',99.0,'#185FA5'],['Recall',98.1,'#1D9E75'],['Precision',92.4,'#EF9F27'],['AUC-ROC',99.9,'#7f77dd']].map(([lbl,val,clr])=>(
+                  <div key={lbl} style={{ marginBottom:'10px' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'4px', fontSize:'11px' }}>
+                      <span style={{ color:TS }}>{lbl}</span>
+                      <span style={{ fontFamily:"'Space Mono',monospace",fontWeight:700,color:TP }}>{val}%</span>
+                    </div>
+                    <div style={{ background:'rgba(255,255,255,0.06)',borderRadius:'4px',height:'4px',overflow:'hidden' }}>
+                      <div style={{ width:`${val}%`,height:'100%',background:clr,borderRadius:'4px',transition:'width 1.2s ease' }} />
+                    </div>
+                  </div>
                 ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* 7-DAY FORECAST */}
-        <div style={{ ...card, marginBottom:'14px' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px', flexWrap:'wrap', gap:'8px' }}>
-            <p style={{ fontSize:'11px', fontWeight:500, color: textSecondary, textTransform:'uppercase', letterSpacing:'0.6px', margin:0 }}>
-              {lang==='hi'?HINDI.forecast:'7-Day Cloudburst Forecast'} — {activeLocation.name}
-              {apiError ? <span style={{ marginLeft:'8px', fontSize:'10px', color:'#EF9F27' }}>(Simulated)</span> : <span style={{ marginLeft:'8px', fontSize:'10px', color:'#1D9E75' }}>(Live)</span>}
-            </p>
-            {peakDay && <span style={{ fontSize:'11px', color: textSecondary }}>Peak: {peakDay.label} — {Math.round(peakDay.cbRisk*100)}%</span>}
-          </div>
-          <div style={{ display:'flex', gap:'8px', overflowX:'auto', paddingBottom:'4px' }}>
-            {forecast.length > 0
-              ? forecast.map((day, i) => <ForecastCard key={i} day={day} selected={selectedDay===i} onClick={() => setSelectedDay(i)} lang={lang} />)
-              : <div style={{ color: textSecondary, fontSize:'12px', padding:'20px 0' }}>Loading forecast...</div>
-            }
-          </div>
-
-          {/* Hourly breakdown for selected day */}
-          {selectedForecast?.hourly?.length > 0 && (
-            <div style={{ marginTop:'14px', paddingTop:'14px', borderTop:'0.5px solid rgba(99,120,170,0.12)' }}>
-              <p style={{ fontSize:'11px', color: textSecondary, marginBottom:'10px', fontWeight:500 }}>Hourly — {selectedForecast.label}</p>
-              <div style={{ display:'flex', gap:'8px', overflowX:'auto', paddingBottom:'4px' }}>
-                {selectedForecast.hourly.map((h, i) => (
-                  <div key={i} style={{ flexShrink:0, textAlign:'center', padding:'8px 10px', background: darkMode?'#161b22':'#f5f5f5', borderRadius:'8px', minWidth:'64px', border:`0.5px solid ${h.rain>10?'rgba(239,159,39,0.4)':h.rain>0?'rgba(79,195,247,0.3)':'rgba(99,120,170,0.15)'}` }}>
-                    <div style={{ fontSize:'10px', color: textSecondary, marginBottom:'4px' }}>{h.time}</div>
-                    <div style={{ fontFamily:"'Space Mono',monospace", fontSize:'12px', fontWeight:700, color: textPrimary }}>{h.temp}°</div>
-                    <div style={{ fontSize:'10px', color:'#4fc3f7', marginTop:'3px' }}>{h.rain>0?h.rain+'mm':'—'}</div>
-                    <div style={{ fontSize:'9px', color: textSecondary, marginTop:'2px' }}>{h.humidity}%</div>
+              </div>
+              <div style={card}>
+                <p style={{ fontSize:'12px', fontWeight:600, color:TS, textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:'12px', marginTop:0 }}>
+                  Recommendations <span style={{ marginLeft:'6px', padding:'2px 8px', borderRadius:'8px', fontSize:'10px', background:`${rcolor}22`, color:rcolor, border:`1px solid ${rcolor}44` }}>{lang==='hi'?HINDI[pred?.risk_level||'LOW']:pred?.risk_level||'LOW'}</span>
+                </p>
+                {(pred?.recommendations||['Monitor weather updates hourly','No immediate action required']).map((r,i)=>(
+                  <div key={i} style={{ display:'flex', gap:'8px', padding:'6px 0', borderBottom:`0.5px solid ${BORDER}`, fontSize:'12px' }}>
+                    <span style={{ fontFamily:"'Space Mono',monospace",fontSize:'10px',color:rcolor,background:`${rcolor}18`,padding:'1px 6px',borderRadius:'4px',flexShrink:0,alignSelf:'flex-start',marginTop:'1px' }}>{String(i+1).padStart(2,'0')}</span>
+                    <span style={{ color:dark?'#c9d1d9':'#374151',lineHeight:1.5 }}>{r}</span>
                   </div>
                 ))}
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Risk summary */}
-          {forecast.length > 0 && (
-            <div style={{ display:'flex', gap:'7px', marginTop:'12px', paddingTop:'12px', borderTop:'0.5px solid rgba(99,120,170,0.1)', flexWrap:'wrap', alignItems:'center' }}>
-              {['LOW','MODERATE','HIGH','CRITICAL'].map(level => {
-                const count = forecast.filter(d => d.riskLevel === level).length
-                return count ? <span key={level} style={{ fontSize:'11px', padding:'3px 9px', borderRadius:'10px', background:`${RISK_COLOR[level]}18`, color:RISK_COLOR[level], border:`0.5px solid ${RISK_COLOR[level]}44` }}>{count}d {lang==='hi'?HINDI[level]:level}</span> : null
-              })}
+        {/* TAB: FORECAST */}
+        {tab==='forecast' && (
+          <div style={{ animation:'slideIn .3s ease both' }}>
+            <div style={card}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px', flexWrap:'wrap', gap:'8px' }}>
+                <p style={{ fontSize:'12px', fontWeight:600, color:TS, textTransform:'uppercase', letterSpacing:'0.5px', margin:0 }}>
+                  7-Day Forecast — {loc.name}
+                  <span style={{ marginLeft:'8px', fontSize:'10px', color: apiError?'#EF9F27':'#1D9E75' }}>{apiError?'(Simulated)':'(Live)'}</span>
+                </p>
+                {peakDay && <span style={{ fontSize:'11px', color:TS }}>Peak: {peakDay.label} — {Math.round(peakDay.cbRisk*100)}%</span>}
+              </div>
+              <div style={{ display:'flex', gap:'10px', overflowX:'auto', paddingBottom:'6px' }}>
+                {forecast.map((day,i)=><ForecastDay key={i} day={day} selected={selDay===i} onClick={()=>setSelDay(i)} lang={lang} />)}
+              </div>
+              {selFc?.hourly?.length>0 && (
+                <div style={{ marginTop:'16px', paddingTop:'16px', borderTop:`1px solid ${BORDER}` }}>
+                  <p style={{ fontSize:'11px', color:TS, marginBottom:'10px', fontWeight:500 }}>Hourly — {selFc.label}</p>
+                  <div style={{ display:'flex', gap:'8px', overflowX:'auto', paddingBottom:'4px' }}>
+                    {selFc.hourly.map((h,i)=>(
+                      <div key={i} style={{ flexShrink:0, textAlign:'center', padding:'10px 12px', background:'rgba(255,255,255,0.03)', borderRadius:'10px', minWidth:'64px', border:`1px solid ${h.rain>10?'rgba(239,159,39,0.4)':h.rain>0?'rgba(79,195,247,0.2)':BORDER}` }}>
+                        <div style={{ fontSize:'10px', color:TS, marginBottom:'5px' }}>{h.time}</div>
+                        <div style={{ fontFamily:"'Space Mono',monospace",fontSize:'13px',fontWeight:700,color:TP }}>{h.temp}°</div>
+                        <div style={{ fontSize:'10px',color:'#4fc3f7',marginTop:'3px' }}>{h.rain>0?h.rain+'mm':'—'}</div>
+                        <div style={{ fontSize:'9px',color:TS,marginTop:'2px' }}>{h.humidity}%</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {forecast.length>0 && (
+                <div style={{ display:'flex',gap:'7px',marginTop:'14px',paddingTop:'14px',borderTop:`1px solid ${BORDER}`,flexWrap:'wrap',alignItems:'center' }}>
+                  {['LOW','MODERATE','HIGH','CRITICAL'].map(level=>{const count=forecast.filter(d=>d.riskLevel===level).length;return count?<span key={level} style={{ fontSize:'11px',padding:'3px 10px',borderRadius:'10px',background:`${RC[level]}18`,color:RC[level],border:`1px solid ${RC[level]}44` }}>{count}d {level}</span>:null})}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-
-        {/* MANUAL PREDICTION */}
-        <div style={{ ...card, marginBottom:'14px' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
-            <p style={{ fontSize:'11px', fontWeight:500, color: textSecondary, textTransform:'uppercase', letterSpacing:'0.6px', margin:0 }}>Manual Prediction</p>
-            <label style={{ display:'flex', alignItems:'center', gap:'7px', fontSize:'12px', color: textSecondary, cursor:'pointer' }}>
-              <input type="checkbox" checked={manualMode} onChange={e => setManualMode(e.target.checked)} />
-              Enable
-            </label>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'8px' }}>
-            {[
-              { key:'rainfall_mm_1h', label:'Rainfall (mm/h)', min:0, max:200, step:1 },
-              { key:'humidity_pct',   label:'Humidity (%)',    min:30, max:100, step:1 },
-              { key:'pressure_hpa',   label:'Pressure (hPa)', min:980, max:1025, step:0.5 },
-              { key:'wind_speed_kmh', label:'Wind (km/h)',     min:0, max:100, step:1 },
-              { key:'radar_reflectivity_dbz', label:'Radar (dBZ)', min:0, max:75, step:1 },
-              { key:'lightning_strikes', label:'Lightning/h',  min:0, max:100, step:1 },
-            ].map(({ key, label, min, max, step }) => (
-              <div key={key} style={{ background: darkMode?'#161b22':'#f5f5f5', borderRadius:'8px', padding:'9px 11px', border:'0.5px solid rgba(99,120,170,0.15)' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'5px' }}>
-                  <span style={{ fontSize:'10px', color: textSecondary }}>{label}</span>
-                  <span style={{ fontFamily:"'Space Mono',monospace", fontSize:'10px', fontWeight:700, color: textPrimary }}>{sliders[key]}</span>
+        )}
+
+        {/* TAB: CHARTS */}
+        {tab==='charts' && (
+          <div style={{ animation:'slideIn .3s ease both' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px', marginBottom:'14px' }}>
+              <div style={card}>
+                <p style={{ fontSize:'12px',fontWeight:600,color:TS,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'12px',marginTop:0 }}>Rain Intensity Chart</p>
+                <div style={{ display:'flex',gap:'6px',marginBottom:'10px',flexWrap:'wrap' }}>
+                  {[['None','#484f58'],['Light','#4fc3f7'],['Moderate','#185FA5'],['Heavy','#EF9F27'],['Extreme','#E24B4A']].map(([l,c])=>(
+                    <span key={l} style={{ fontSize:'10px',color:c,padding:'2px 7px',border:`0.5px solid ${c}44`,borderRadius:'6px',background:`${c}15` }}>{l}</span>
+                  ))}
                 </div>
-                <input type="range" min={min} max={max} step={step} value={sliders[key]} disabled={!manualMode}
-                  onChange={e => setSliders(s => ({ ...s, [key]: +e.target.value }))}
-                  style={{ width:'100%', opacity: manualMode?1:0.35 }} />
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={chartData} margin={{top:0,right:0,left:-20,bottom:0}}>
+                    <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                    <XAxis dataKey="time" tick={{fill:TS,fontSize:9}} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={{fill:TS,fontSize:9}} tickLine={false} axisLine={false} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <ReferenceLine y={100} stroke="#E24B4A" strokeDasharray="4 2" label={{value:'Cloudburst',fill:'#E24B4A',fontSize:9,position:'right'}} />
+                    <ReferenceLine y={35} stroke="#EF9F27" strokeDasharray="4 2" label={{value:'Heavy',fill:'#EF9F27',fontSize:9,position:'right'}} />
+                    <Bar dataKey="rain" name="Rain mm/h" fill="#185FA5" radius={[3,3,0,0]} maxBarSize={16} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-          </div>
-          {!manualMode && <p style={{ fontSize:'11px', color: textSecondary, textAlign:'center', marginTop:'8px' }}>Tick "Enable" to adjust sliders</p>}
-        </div>
-
-        {/* BOTTOM ROW */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:'14px' }}>
-          <div style={card}>
-            <p style={{ fontSize:'11px', fontWeight:500, color: textSecondary, textTransform:'uppercase', letterSpacing:'0.6px', marginBottom:'10px', marginTop:0 }}>Humidity & Wind (24h)</p>
-            <ResponsiveContainer width="100%" height={140}>
-              <AreaChart data={chartData} margin={{ top:0,right:0,left:-20,bottom:0 }}>
-                <defs>
-                  <linearGradient id="humG" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#185FA5" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#185FA5" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(99,120,170,0.08)" vertical={false} />
-                <XAxis dataKey="time" tick={{ fill: textSecondary, fontSize:9 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                <YAxis tick={{ fill: textSecondary, fontSize:9 }} tickLine={false} axisLine={false} domain={[0,110]} />
-                <Tooltip contentStyle={{ background: bgCard, border:'0.5px solid rgba(99,120,170,0.3)', borderRadius:'8px', fontSize:'11px' }} />
-                <Area type="monotone" dataKey="humidity" name="Humidity %" stroke="#185FA5" strokeWidth={1.5} fill="url(#humG)" dot={false} />
-                <Area type="monotone" dataKey="wind"     name="Wind km/h"  stroke="#7f77dd" strokeWidth={1.5} fill="none"       dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div style={card}>
-            <p style={{ fontSize:'11px', fontWeight:500, color: textSecondary, textTransform:'uppercase', letterSpacing:'0.6px', marginBottom:'12px', marginTop:0 }}>Model Performance</p>
-            {[{ label:'Accuracy', value:99.0, color:'#185FA5' },{ label:'Recall', value:98.1, color:'#1D9E75' },{ label:'Precision', value:92.4, color:'#EF9F27' },{ label:'AUC-ROC', value:99.9, color:'#7f77dd' }].map(({ label, value, color }) => (
-              <div key={label} style={{ marginBottom:'9px' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'3px', fontSize:'12px' }}>
-                  <span style={{ color: textSecondary }}>{label}</span>
-                  <span style={{ fontFamily:"'Space Mono',monospace", fontWeight:700, color: textPrimary }}>{value}%</span>
-                </div>
-                <div style={{ background:'rgba(99,120,170,0.1)', borderRadius:'4px', height:'4px' }}>
-                  <div style={{ width:`${value}%`, height:'100%', background:color, borderRadius:'4px' }}></div>
-                </div>
+              <div style={card}>
+                <p style={{ fontSize:'12px',fontWeight:600,color:TS,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'12px',marginTop:0 }}>Pressure Trend</p>
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={chartData} margin={{top:0,right:0,left:-20,bottom:0}}>
+                    <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                    <XAxis dataKey="time" tick={{fill:TS,fontSize:9}} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={{fill:TS,fontSize:9}} tickLine={false} axisLine={false} domain={['auto','auto']} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <ReferenceLine y={1000} stroke="#E24B4A" strokeDasharray="4 2" />
+                    <Line type="monotone" dataKey="pressure" name="Pressure hPa" stroke="#7f77dd" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
-            ))}
+            </div>
+            <div style={card}>
+              <p style={{ fontSize:'12px',fontWeight:600,color:TS,textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:'12px',marginTop:0 }}>Cloudburst Probability Trend</p>
+              <ResponsiveContainer width="100%" height={160}>
+                <AreaChart data={chartData} margin={{top:4,right:4,left:-16,bottom:0}}>
+                  <defs>
+                    <linearGradient id="probG" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#E24B4A" stopOpacity={0.3}/><stop offset="95%" stopColor="#E24B4A" stopOpacity={0}/></linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <XAxis dataKey="time" tick={{fill:TS,fontSize:9}} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                  <YAxis domain={[0,100]} tick={{fill:TS,fontSize:9}} tickLine={false} axisLine={false} tickFormatter={v=>v+'%'} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <ReferenceLine y={55} stroke="#EF9F27" strokeDasharray="4 2" label={{value:'HIGH threshold',fill:'#EF9F27',fontSize:9}} />
+                  <ReferenceLine y={75} stroke="#E24B4A" strokeDasharray="4 2" label={{value:'CRITICAL',fill:'#E24B4A',fontSize:9}} />
+                  <Area type="monotone" dataKey="prob" name="CB Probability %" stroke="#E24B4A" strokeWidth={2} fill="url(#probG)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
+        )}
 
-          <div style={card}>
-            <p style={{ fontSize:'11px', fontWeight:500, color: textSecondary, textTransform:'uppercase', letterSpacing:'0.6px', marginBottom:'12px', marginTop:0 }}>
-              {lang==='hi'?HINDI.recommendations:'Recommendations'}
-              <span style={{ marginLeft:'7px', padding:'2px 7px', borderRadius:'9px', fontSize:'10px', background:`${riskColor}22`, color:riskColor, border:`0.5px solid ${riskColor}44` }}>{lang==='hi'?HINDI[prediction?.risk_level||'LOW']:prediction?.risk_level||'LOW'}</span>
-            </p>
-            <ul style={{ listStyle:'none', padding:0, margin:0 }}>
-              {(prediction?.recommendations||['Monitor weather updates hourly','No immediate action required']).map((rec,i) => (
-                <li key={i} style={{ display:'flex', gap:'7px', padding:'6px 0', borderBottom:'0.5px solid rgba(99,120,170,0.1)', fontSize:'12px' }}>
-                  <span style={{ fontFamily:"'Space Mono',monospace", fontSize:'9px', color:riskColor, background:`${riskColor}18`, padding:'1px 5px', borderRadius:'4px', flexShrink:0, alignSelf:'flex-start', marginTop:'1px' }}>{String(i+1).padStart(2,'0')}</span>
-                  <span style={{ color: darkMode?'#c9d1d9':'#374151', lineHeight:1.5 }}>{rec}</span>
-                </li>
+        {/* TAB: MANUAL */}
+        {tab==='manual' && (
+          <div style={{ animation:'slideIn .3s ease both', ...card }}>
+            <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'18px' }}>
+              <div>
+                <p style={{ fontFamily:"'Syne',sans-serif",fontSize:'16px',fontWeight:700,color:TP,margin:'0 0 4px' }}>Manual Prediction</p>
+                <p style={{ fontSize:'12px',color:TS,margin:0 }}>Adjust parameters to simulate custom weather conditions</p>
+              </div>
+              <label style={{ display:'flex',alignItems:'center',gap:'8px',fontSize:'13px',color:TS,cursor:'pointer',padding:'6px 14px',border:`1px solid ${manualMode?'rgba(79,195,247,0.5)':BORDER}`,borderRadius:'8px',background:manualMode?'rgba(79,195,247,0.1)':'transparent',transition:'all .15s' }}>
+                <input type="checkbox" checked={manualMode} onChange={e=>setManualMode(e.target.checked)} />
+                Enable
+              </label>
+            </div>
+            <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'12px',marginBottom:'20px' }}>
+              {[['rainfall_mm_1h','Rainfall (mm/h)',0,200,1],['humidity_pct','Humidity (%)',30,100,1],['pressure_hpa','Pressure (hPa)',980,1025,0.5],['wind_speed_kmh','Wind (km/h)',0,100,1],['radar_reflectivity_dbz','Radar (dBZ)',0,75,1],['lightning_strikes','Lightning/h',0,100,1]].map(([key,label,min,max,step])=>(
+                <div key={key} style={{ background:'rgba(255,255,255,0.03)',borderRadius:'12px',padding:'14px 16px',border:`1px solid ${BORDER}` }}>
+                  <div style={{ display:'flex',justifyContent:'space-between',marginBottom:'10px' }}>
+                    <span style={{ fontSize:'11px',color:TS,fontWeight:500 }}>{label}</span>
+                    <span style={{ fontFamily:"'Space Mono',monospace",fontSize:'12px',fontWeight:700,color:TP }}>{sliders[key]}</span>
+                  </div>
+                  <input type="range" min={min} max={max} step={step} value={sliders[key]} disabled={!manualMode}
+                    onChange={e=>setSliders(s=>({...s,[key]:+e.target.value}))}
+                    style={{ width:'100%',opacity:manualMode?1:0.3 }} />
+                </div>
               ))}
-            </ul>
+            </div>
+            {!manualMode && <p style={{ fontSize:'12px',color:TS,textAlign:'center',padding:'8px',background:'rgba(255,255,255,0.03)',borderRadius:'8px' }}>Enable manual mode above to adjust sliders and run predictions</p>}
+            {manualMode && pred && (
+              <div style={{ padding:'16px',background:`${rcolor}10`,border:`1px solid ${rcolor}33`,borderRadius:'12px',display:'flex',alignItems:'center',gap:'16px' }}>
+                <div style={{ fontFamily:"'Space Mono',monospace",fontSize:'36px',fontWeight:700,color:rcolor }}>{Math.round(pred.probability*100)}%</div>
+                <div>
+                  <div style={{ fontFamily:"'Syne',sans-serif",fontSize:'16px',fontWeight:700,color:rcolor }}>{pred.risk_level} RISK</div>
+                  <div style={{ fontSize:'12px',color:TS,marginTop:'3px' }}>{pred.recommendations?.[0]}</div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
       </div>
 
-      {/* MODALS */}
-      {showCompare && <CompareModal onClose={() => setShowCompare(false)} primaryLoc={activeLocation} primaryWeather={{ ...currentWeather, prediction }} lang={lang} />}
-      {showCustomLoc && <CustomLocModal onClose={() => setShowCustomLoc(false)} onAdd={loc => { setActiveLocation(loc); setShowCustomLoc(false) }} />}
-
+      {showCompare && <CompareModal onClose={()=>setShowCompare(false)} primaryLoc={loc} primaryWeather={w} primaryPred={pred} />}
     </div>
   )
 }
