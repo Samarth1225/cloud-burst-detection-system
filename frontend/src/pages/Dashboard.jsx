@@ -1074,6 +1074,9 @@ function StatCard({ label, value, unit, sub, subColor, icon, accentColor='#185FA
   return (
     <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'16px', padding:'18px 20px', position:'relative', overflow:'hidden' }}>
       <div style={{ position:'absolute', top:0, left:0, right:0, height:'2px', background:`linear-gradient(90deg, ${accentColor}, transparent)` }} />
+      <div style={{ position:'absolute', top:0, left:0, right:0, height:'2px',
+        background:`linear-gradient(90deg, transparent, ${accentColor}88, transparent)`,
+        backgroundSize:'200% 100%', animation:'shimmer 3s linear infinite' }} />
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'10px' }}>
         <span style={{ fontSize:'11px', color:'#8b949e', fontWeight:500, textTransform:'uppercase', letterSpacing:'0.5px' }}>{label}</span>
         {icon && <span style={{ fontSize:'16px', opacity:0.7 }}>{icon}</span>}
@@ -1254,36 +1257,102 @@ export default function Dashboard({ onBack }) {
   const TS   = dark ? '#8b949e' : '#6b7280'
   const TOPBG= dark ? 'rgba(7,11,20,0.9)' : 'rgba(255,255,255,0.95)'
 
-  const card = { background:CARD, border:`1px solid ${BORDER}`, borderRadius:'16px', padding:'20px 22px' }
+  const card = {
+    background: dark
+      ? 'linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)'
+      : '#ffffff',
+    border: `1px solid ${BORDER}`,
+    borderRadius: '16px',
+    padding: '20px 22px',
+    backdropFilter: 'blur(12px)',
+    boxShadow: dark ? '0 4px 30px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)' : '0 2px 20px rgba(0,0,0,0.06)',
+  }
 
   return (
     <div style={{ background:BG, minHeight:'100vh', paddingBottom:'50px', position:'relative', overflow:'hidden' }}>
 
       <style>{`
-        @keyframes rainFall{0%{transform:translateY(-20px);opacity:0}10%{opacity:1}90%{opacity:0.6}100%{transform:translateY(100vh);opacity:0}}
-        @keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes rainFall{0%{transform:translateY(-20px) rotate(12deg);opacity:0}10%{opacity:1}90%{opacity:0.7}100%{transform:translateY(105vh) rotate(12deg);opacity:0}}
+        @keyframes slideIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
         @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+        @keyframes orb1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(60px,-40px) scale(1.15)}66%{transform:translate(-40px,30px) scale(0.9)}}
+        @keyframes orb2{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(-80px,50px) scale(0.85)}66%{transform:translate(50px,-30px) scale(1.1)}}
+        @keyframes orb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(40px,40px) scale(1.2)}}
+        @keyframes scanLine{0%{transform:translateY(-2px)}100%{transform:translateY(100vh)}}
+        @keyframes flicker{0%,100%{opacity:1}92%{opacity:1}93%{opacity:0.4}94%{opacity:1}96%{opacity:0.7}97%{opacity:1}}
+        @keyframes borderGlow{0%,100%{box-shadow:0 0 0 1px rgba(79,195,247,0.15)}50%{box-shadow:0 0 0 1px rgba(79,195,247,0.4),0 0 20px rgba(79,195,247,0.08)}}
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+        @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
         .tab-btn:hover{color:#e6edf3 !important;background:rgba(255,255,255,0.06) !important}
         .action-btn:hover{border-color:rgba(79,195,247,0.5) !important;color:#4fc3f7 !important;background:rgba(79,195,247,0.08) !important}
-        .nearby-card:hover{border-color:rgba(79,195,247,0.4) !important;background:rgba(79,195,247,0.05) !important}
+        .nearby-card:hover{border-color:rgba(79,195,247,0.4) !important;background:rgba(79,195,247,0.05) !important;transform:translateY(-2px)}
         .quick-btn:hover{border-color:#185FA5 !important;color:#4fc3f7 !important}
+        .stat-card-hover:hover{transform:translateY(-3px) !important;box-shadow:0 12px 40px rgba(0,0,0,0.4) !important}
+        .forecast-glow{animation:borderGlow 4s ease infinite}
       `}</style>
+
+      {/* ── LAYERED BACKGROUND ──────────────────────────────────────────────── */}
+      {/* Base deep space gradient */}
+      <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0,
+        background: dark
+          ? 'radial-gradient(ellipse 120% 80% at 10% 20%, #0a1628 0%, #070b14 40%, #060910 100%)'
+          : 'radial-gradient(ellipse 120% 80% at 10% 20%, #e8f0fe 0%, #f0f2f5 50%, #e8edf5 100%)'
+      }} />
+
+      {/* Animated colour orbs */}
+      <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
+        <div style={{ position:'absolute', top:'-15%', left:'-10%', width:'600px', height:'600px',
+          borderRadius:'50%', background:'radial-gradient(circle, rgba(24,95,165,0.12) 0%, transparent 70%)',
+          animation:'orb1 18s ease-in-out infinite', filter:'blur(60px)' }} />
+        <div style={{ position:'absolute', top:'30%', right:'-15%', width:'500px', height:'500px',
+          borderRadius:'50%', background:`radial-gradient(circle, ${rcolor}10 0%, transparent 70%)`,
+          animation:'orb2 22s ease-in-out infinite', filter:'blur(80px)' }} />
+        <div style={{ position:'absolute', bottom:'-10%', left:'30%', width:'400px', height:'400px',
+          borderRadius:'50%', background:'radial-gradient(circle, rgba(29,158,117,0.08) 0%, transparent 70%)',
+          animation:'orb3 16s ease-in-out infinite', filter:'blur(70px)' }} />
+      </div>
+
+      {/* Fine dot grid */}
+      <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0,
+        backgroundImage:'radial-gradient(circle, rgba(79,195,247,0.08) 1px, transparent 1px)',
+        backgroundSize:'32px 32px' }} />
+
+      {/* Diagonal line texture */}
+      <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, opacity: dark ? 0.4 : 0.15,
+        backgroundImage:`repeating-linear-gradient(45deg, transparent, transparent 40px, rgba(79,195,247,0.02) 40px, rgba(79,195,247,0.02) 41px)` }} />
+
+      {/* Top-edge scan line */}
+      <div style={{ position:'fixed', top:0, left:0, right:0, height:'1px',
+        background:'linear-gradient(90deg, transparent 0%, rgba(79,195,247,0.6) 30%, rgba(24,95,165,0.8) 50%, rgba(79,195,247,0.6) 70%, transparent 100%)',
+        pointerEvents:'none', zIndex:5, animation:'flicker 8s linear infinite' }} />
 
       {/* Rain FX */}
       {rainFx && (
-        <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
-          {Array.from({length:35}).map((_,i)=>(
-            <div key={i} style={{ position:'absolute', top:'-20px', left:`${Math.random()*100}%`, width:'1.5px', height:`${12+Math.random()*22}px`, background:'rgba(79,195,247,0.25)', animation:`rainFall ${0.5+Math.random()*0.9}s linear infinite`, animationDelay:`${Math.random()*2}s` }} />
+        <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:1, overflow:'hidden' }}>
+          {Array.from({length:55}).map((_,i)=>(
+            <div key={i} style={{
+              position:'absolute', top:'-30px',
+              left:`${(i*1.9)%100}%`,
+              width: i%4===0 ? '2px' : '1.5px',
+              height:`${10+i%25}px`,
+              background:`linear-gradient(to bottom, transparent, rgba(79,195,247,${0.15+i%3*0.08}))`,
+              animation:`rainFall ${0.4+(i%5)*0.18}s linear infinite`,
+              animationDelay:`${(i*0.09)%2.5}s`,
+            }} />
           ))}
-          <div style={{ position:'absolute', inset:0, background:`radial-gradient(ellipse at center, ${rcolor}08 0%, transparent 70%)` }} />
+          {/* Lightning flash effect */}
+          <div style={{ position:'absolute', inset:0,
+            background:`radial-gradient(ellipse 60% 40% at 50% 0%, ${rcolor}06 0%, transparent 60%)`,
+            animation:'orb2 6s ease-in-out infinite' }} />
         </div>
       )}
 
-      {/* Grid background */}
-      <div style={{ position:'fixed', inset:0, backgroundImage:'linear-gradient(rgba(79,195,247,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(79,195,247,0.02) 1px, transparent 1px)', backgroundSize:'60px 60px', pointerEvents:'none', zIndex:0 }} />
-
       {/* TOP NAV */}
-      <div style={{ position:'sticky', top:0, zIndex:100, background:TOPBG, borderBottom:`1px solid ${BORDER}`, backdropFilter:'blur(20px)', padding:'10px 24px', display:'flex', alignItems:'center', gap:'12px', flexWrap:'wrap' }}>
+      <div style={{ position:'sticky', top:0, zIndex:100, background:TOPBG,
+        borderBottom:`1px solid ${BORDER}`,
+        backdropFilter:'blur(24px)',
+        boxShadow: dark ? '0 1px 0 rgba(79,195,247,0.08), 0 4px 30px rgba(0,0,0,0.4)' : '0 1px 0 rgba(0,0,0,0.08)',
+        padding:'10px 24px', display:'flex', alignItems:'center', gap:'12px', flexWrap:'wrap' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
           {onBack && (
             <button onClick={onBack} style={{ width:32, height:32, borderRadius:'8px', background:'rgba(255,255,255,0.05)', border:`1px solid ${BORDER}`, color:TS, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', transition:'all .15s' }}
@@ -1371,7 +1440,11 @@ export default function Dashboard({ onBack }) {
         {pred && pred.risk_level !== 'LOW' && <div style={{ marginBottom:'14px' }}><AlertBanner riskLevel={pred.risk_level} probability={pred.probability} stationName={loc.name} recommendations={pred.recommendations} /></div>}
 
         {/* RISK HERO BANNER */}
-        <div style={{ marginBottom:'16px', padding:'20px 24px', background:`linear-gradient(135deg, ${rcolor}10, rgba(0,0,0,0.2))`, border:`1px solid ${rcolor}33`, borderRadius:'16px', display:'flex', alignItems:'center', gap:'20px', flexWrap:'wrap', animation:'slideIn .4s ease 0.1s both' }}>
+        <div style={{ marginBottom:'16px', padding:'20px 24px',
+          background:`linear-gradient(135deg, ${rcolor}12 0%, rgba(7,11,20,0.8) 100%)`,
+          border:`1px solid ${rcolor}44`, borderRadius:'16px',
+          boxShadow:`0 0 40px ${rcolor}12, inset 0 1px 0 rgba(255,255,255,0.06)`,
+          backdropFilter:'blur(12px)', display:'flex', alignItems:'center', gap:'20px', flexWrap:'wrap', animation:'slideIn .4s ease 0.1s both' }}>
           <div>
             <div style={{ fontFamily:"'Space Mono',monospace", fontSize:'48px', fontWeight:700, color:rcolor, lineHeight:1 }}>{Math.round((pred?.probability||0)*100)}<span style={{ fontSize:'22px' }}>%</span></div>
             <div style={{ fontSize:'12px', color:TS, marginTop:'4px' }}>Cloudburst Probability</div>
