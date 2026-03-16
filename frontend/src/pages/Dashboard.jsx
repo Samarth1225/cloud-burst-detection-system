@@ -1223,7 +1223,7 @@ function CustomLocModal({ onClose, onAdd }) {
 }
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
-export default function Dashboard() {
+export default function Dashboard({ onBack }) {
   const [activeLocation,  setActiveLocation]  = useState(LOCATIONS[0])
   const [currentWeather,  setCurrentWeather]  = useState(null)
   const [weatherHistory,  setWeatherHistory]  = useState([])
@@ -1428,6 +1428,13 @@ ${(prediction?.recommendations || []).map((r,i) => `${i+1}. ${r}`).join('\n')}
           </div>
         </div>
 
+        {onBack && (
+          <button onClick={onBack} style={{ padding:'6px 12px', background:'rgba(255,255,255,0.05)', border:'0.5px solid rgba(99,120,170,0.3)', borderRadius:'8px', color:'#8b949e', fontSize:'12px', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:'6px', flexShrink:0, transition:'all .15s' }}
+            onMouseEnter={e=>{e.currentTarget.style.color='#e6edf3';e.currentTarget.style.borderColor='rgba(99,120,170,0.6)'}}
+            onMouseLeave={e=>{e.currentTarget.style.color='#8b949e';e.currentTarget.style.borderColor='rgba(99,120,170,0.3)'}}>
+            ← Home
+          </button>
+        )}
         <LocationSearch onSelect={loc => { setActiveLocation(loc); setLoading(true); setSelectedDay(0) }} currentName={activeLocation.name} lang={lang} />
 
         <div style={{ display:'flex', alignItems:'center', gap:'8px', flexShrink:0, marginLeft:'auto', flexWrap:'wrap' }}>

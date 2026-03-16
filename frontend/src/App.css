@@ -1,43 +1,57 @@
-/* App-level overrides */
-#root {
-  width: 100%;
-  min-height: 100vh;
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Syne:wght@700;800&family=Space+Mono:wght@400;700&display=swap');
+
+:root {
+  --blue: #185FA5;
+  --teal: #1D9E75;
+  --cyan: #4fc3f7;
+  --red: #E24B4A;
+  --amber: #EF9F27;
 }
 
-/* Range input global styling */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  background: #070b14;
+  color: #e6edf3;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root { width: 100%; min-height: 100vh; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #0d1117; }
+::-webkit-scrollbar-thumb { background: rgba(79,195,247,0.2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(79,195,247,0.4); }
+
 input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 4px;
-  background: rgba(99,120,170,0.25);
-  border-radius: 2px;
-  outline: none;
+  -webkit-appearance: none; appearance: none;
+  height: 3px; background: rgba(99,120,170,0.2); border-radius: 2px; outline: none;
 }
 input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #185FA5;
-  cursor: pointer;
-  border: 2px solid #0d1117;
+  -webkit-appearance: none; width: 14px; height: 14px;
+  border-radius: 50%; background: #185FA5; cursor: pointer;
+  border: 2px solid #0d1117; transition: background .15s;
 }
-input[type="range"]:disabled::-webkit-slider-thumb {
-  background: rgba(99,120,170,0.3);
-  cursor: default;
-}
+input[type="range"]:hover::-webkit-slider-thumb { background: #4fc3f7; }
+input[type="range"]:disabled::-webkit-slider-thumb { background: rgba(99,120,170,0.3); cursor: default; }
 
-/* Checkbox */
-input[type="checkbox"] {
-  accent-color: #185FA5;
-}
+input[type="checkbox"] { accent-color: #185FA5; }
+button { font-family: 'DM Sans', sans-serif; }
 
-/* Button reset */
-button {
-  font-family: 'DM Sans', sans-serif;
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-
-/* Link reset */
-a {
-  color: #4fc3f7;
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.8); }
 }
+.pulse-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  animation: pulse 1.6s ease infinite;
+}
+.animate-in { animation: fadeInUp 0.4s ease both; }
