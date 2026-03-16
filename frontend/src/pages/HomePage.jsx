@@ -129,8 +129,10 @@ export default function HomePage({ onEnter }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
-          {['Features', 'How it Works', 'Coverage'].map(link => (
-            <a key={link} className="nav-link" href="#" style={{ fontSize: '13px', color: '#8b949e', textDecoration: 'none', transition: 'color .2s', fontWeight: 500 }}>{link}</a>
+          {[['Features','#features'],['How it Works','#how-it-works'],['Coverage','#coverage']].map(([label, href]) => (
+            <a key={label} className="nav-link" href={href}
+              onClick={e => { e.preventDefault(); document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' }) }}
+              style={{ fontSize: '13px', color: '#8b949e', textDecoration: 'none', transition: 'color .2s', fontWeight: 500 }}>{label}</a>
           ))}
           <button onClick={onEnter} className="enter-btn" style={{ padding: '8px 20px', background: 'rgba(24,95,165,0.2)', border: '1px solid rgba(24,95,165,0.5)', borderRadius: '8px', color: '#4fc3f7', fontSize: '13px', fontWeight: 500, cursor: 'pointer', transition: 'all .2s', fontFamily: "'DM Sans', sans-serif" }}>
             Open Dashboard →
@@ -253,7 +255,7 @@ export default function HomePage({ onEnter }) {
       </section>
 
       {/* FEATURES */}
-      <section style={{ position: 'relative', zIndex: 1, padding: '80px 48px', maxWidth: '1200px', margin: '0 auto' }}>
+      <section id="features" style={{ position: 'relative', zIndex: 1, padding: '80px 48px', maxWidth: '1200px', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '52px' }}>
           <div style={{ fontSize: '11px', color: '#4fc3f7', letterSpacing: '2px', fontWeight: 600, marginBottom: '12px' }}>CAPABILITIES</div>
           <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '40px', fontWeight: 800, color: '#e6edf3', margin: 0 }}>
@@ -276,7 +278,7 @@ export default function HomePage({ onEnter }) {
       </section>
 
       {/* HOW IT WORKS */}
-      <section style={{ position: 'relative', zIndex: 1, padding: '60px 48px 80px', maxWidth: '1200px', margin: '0 auto' }}>
+      <section id="how-it-works" style={{ position: 'relative', zIndex: 1, padding: '60px 48px 80px', maxWidth: '1200px', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '52px' }}>
           <div style={{ fontSize: '11px', color: '#4fc3f7', letterSpacing: '2px', fontWeight: 600, marginBottom: '12px' }}>PIPELINE</div>
           <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '40px', fontWeight: 800, color: '#e6edf3', margin: 0 }}>How it works</h2>
@@ -294,6 +296,39 @@ export default function HomePage({ onEnter }) {
               <div style={{ fontFamily: "'Space Mono', monospace", fontSize: '10px', color: '#4fc3f7', marginBottom: '8px' }}>{step.step}</div>
               <h4 style={{ fontFamily: "'Syne', sans-serif", fontSize: '15px', fontWeight: 700, color: '#e6edf3', margin: '0 0 8px' }}>{step.title}</h4>
               <p style={{ fontSize: '12px', color: '#8b949e', lineHeight: 1.6, margin: 0 }}>{step.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+
+      {/* COVERAGE */}
+      <section id="coverage" style={{ position: 'relative', zIndex: 1, padding: '60px 48px', maxWidth: '1200px', margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: '52px' }}>
+          <div style={{ fontSize: '11px', color: '#4fc3f7', letterSpacing: '2px', fontWeight: 600, marginBottom: '12px' }}>COVERAGE</div>
+          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '40px', fontWeight: 800, color: '#e6edf3', margin: 0 }}>
+            Every corner of <span style={{ color: '#4fc3f7' }}>India</span>
+          </h2>
+          <p style={{ fontSize: '14px', color: '#8b949e', marginTop: '14px' }}>827+ locations across all 28 states and 8 union territories</p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
+          {[
+            { region: 'North India',      states: 'Punjab · Haryana · HP · UK · J&K · Ladakh · Delhi', count: '220+', icon: '🏔️' },
+            { region: 'West India',       states: 'Rajasthan · Gujarat · Maharashtra · Goa',            count: '140+', icon: '🌵' },
+            { region: 'South India',      states: 'Kerala · Karnataka · Tamil Nadu · AP · Telangana',   count: '180+', icon: '🌴' },
+            { region: 'East & Northeast', states: 'WB · Assam · Meghalaya · Sikkim · Arunachal + more', count: '180+', icon: '🌧️' },
+            { region: 'Central India',    states: 'MP · Chhattisgarh · Jharkhand · Bihar · UP',         count: '160+', icon: '🌾' },
+            { region: 'High Risk Zones',  states: 'Cherrapunji · Kedarnath · Munnar · Darjeeling',      count: 'Priority', icon: '⚠️' },
+            { region: 'Hill Stations',    states: 'Shimla · Manali · Ooty · Kodaikanal · Mussoorie',    count: '50+', icon: '⛰️' },
+            { region: 'Coastal Areas',    states: 'Mumbai · Kochi · Chennai · Visakhapatnam · Goa',     count: '40+', icon: '🌊' },
+          ].map(r => (
+            <div key={r.region} style={{ padding: '20px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(79,195,247,0.1)', borderRadius: '12px', transition: 'all .2s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(79,195,247,0.35)'; e.currentTarget.style.background='rgba(79,195,247,0.04)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(79,195,247,0.1)'; e.currentTarget.style.background='rgba(255,255,255,0.03)' }}>
+              <div style={{ fontSize: '24px', marginBottom: '10px' }}>{r.icon}</div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '14px', fontWeight: 700, color: '#e6edf3', marginBottom: '6px' }}>{r.region}</div>
+              <div style={{ fontSize: '11px', color: '#8b949e', lineHeight: 1.6, marginBottom: '10px' }}>{r.states}</div>
+              <div style={{ fontFamily: "'Space Mono', monospace", fontSize: '11px', color: '#4fc3f7', fontWeight: 700 }}>{r.count} locations</div>
             </div>
           ))}
         </div>
